@@ -1,0 +1,41 @@
+# Try the app on one machine without SSO:
+#   docker compose -f docker-compose.local.yml up --build
+# then open http://slides.localhost:3000. Everyone is DEV_USER_EMAIL; never expose this setup.
+services:
+  app:
+    image: slidango:local
+    build: .
+    environment:
+      NODE_ENV: development
+      DEV_USER_EMAIL: ${DEV_USER_EMAIL:-dev@example.com}
+      ADMIN_EMAILS: ${DEV_USER_EMAIL:-dev@example.com}
+      # Previews run on <slug>.slides.localhost (like *.slides.intern in production).
+      PUBLIC_URL: http://slides.localhost:3000
+      PREVIEW_URL: http://{slug}.slides.localhost:3000
+      DATABASE_URL: postgres://slides:slides@postgres:5432/slides
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      LLM_MODEL: ${LLM_MODEL:-}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+    ports: ["127.0.0.1:3000:3000"]
+    volumes:
+      - local-app-data:/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: slides
+      POSTGRES_PASSWORD: slides
+      POSTGRES_DB: slides
+    volumes:
+      - local-pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U slides"]
+      interval: 5s
+      retries: 10
+
+volumes:
+  local-app-data:
+  local-pg-data:

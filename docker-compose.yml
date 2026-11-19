@@ -1,0 +1,64 @@
+services:
+  caddy:
+    image: caddy:2.10
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?set APP_DOMAIN in .env (see .env.example)}
+      PREVIEW_DOMAIN: ${PREVIEW_DOMAIN:?set PREVIEW_DOMAIN in .env}
+      AUTH_MODE: ${AUTH_MODE:?set AUTH_MODE in .env (oidc or password)}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./deploy/caddy-auth:/etc/caddy/auth:ro
+      - ${TLS_DIR:-./deploy/certs}:/certs:ro
+      - caddy-data:/data
+    # AUTH_MODE=oidc also needs docker-compose.oidc.yml (oauth2-proxy), see .env.example.
+    depends_on: [app]
+
+  app:
+    image: ${APP_IMAGE:-slidango:latest}
+    build: .
+    restart: unless-stopped
+    # No published ports: the app trusts identity headers and must only be reachable via Caddy.
+    environment:
+      PUBLIC_URL: https://${APP_DOMAIN:?set APP_DOMAIN in .env (see .env.example)}
+      PREVIEW_DOMAIN: ${PREVIEW_DOMAIN:?set PREVIEW_DOMAIN in .env}
+      DATABASE_URL: postgres://slides:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/slides
+      AUTH_MODE: ${AUTH_MODE:?set AUTH_MODE in .env (oidc or password)}
+      # oidc only: admins by e-mail. password mode: admin = logged in with AUTH_ADMIN_PASSWORD.
+      ADMIN_EMAILS: ${ADMIN_EMAILS:-}
+      AUTH_PASSWORD: ${AUTH_PASSWORD:-}
+      AUTH_ADMIN_PASSWORD: ${AUTH_ADMIN_PASSWORD:-}
+      AUTH_SECRET: ${AUTH_SECRET:-}
+      # Defaults for the assistant; admins can change them in the UI.
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      LLM_MODEL: ${LLM_MODEL:-}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_VISION: ${LLM_VISION:-false}
+      RUNNER_MAX_INSTANCES: ${RUNNER_MAX_INSTANCES:-15}
+      RUNNER_IDLE_MINUTES: ${RUNNER_IDLE_MINUTES:-10}
+    volumes:
+      - app-data:/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+    stop_grace_period: 30s
+
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: slides
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: slides
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U slides"]
+      interval: 5s
+      retries: 10
+
+volumes:
+  caddy-data:
+  app-data:
+  pg-data:

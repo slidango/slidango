@@ -1,0 +1,8 @@
+{$APP_DOMAIN}, *.{$PREVIEW_DOMAIN} {
+	tls /certs/fullchain.pem /certs/privkey.pem
+
+	# AUTH_MODE=oidc: login via oauth2-proxy (forward_auth).
+	# AUTH_MODE=password: the app checks the shared password itself.
+	# Both drop client-supplied identity headers before anything reaches the app.
+	import /etc/caddy/auth/{$AUTH_MODE}.caddy
+}

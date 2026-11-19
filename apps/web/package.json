@@ -1,0 +1,33 @@
+{
+  "name": "@slidango/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "vue-tsc -p . --noEmit"
+  },
+  "dependencies": {
+    "@codemirror/lang-markdown": "6.5.2",
+    "@codemirror/language": "6.13.1",
+    "@codemirror/lint": "6.9.7",
+    "@codemirror/state": "6.7.6",
+    "@codemirror/view": "6.43.15",
+    "@hocuspocus/provider": "4.8.0",
+    "@lezer/highlight": "1.2.5",
+    "@slidango/shared": "workspace:*",
+    "codemirror": "6.0.2",
+    "vue": "3.5.44",
+    "vue-router": "4.6.4",
+    "y-codemirror.next": "0.3.6",
+    "y-protocols": "1.0.7",
+    "yjs": "13.6.33"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "6.0.10",
+    "typescript": "5.9.3",
+    "vite": "7.3.7",
+    "vue-tsc": "3.3.14"
+  }
+}

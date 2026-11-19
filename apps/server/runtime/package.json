@@ -1,0 +1,18 @@
+{
+  "name": "slidev-runtime-builtin",
+  "private": true,
+  "description": "Slidev runtime for decks without an uploaded template. Installed separately from the workspace.",
+  "packageManager": "pnpm@10.34.9",
+  "dependencies": {
+    "@slidev/cli": "53.0.0",
+    "@slidev/theme-default": "0.25.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "@comark/markdown-it>markdown-it": "14.3.3"
+    },
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  }
+}

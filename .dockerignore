@@ -1,0 +1,14 @@
+**/node_modules
+**/dist
+.git
+.env
+**/data
+e2e/.data
+test-results
+playwright-report
+.pnpm-store
+core
+deploy/certs
+*.pem
+*.key
+*.zip

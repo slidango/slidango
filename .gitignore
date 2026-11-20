@@ -13,3 +13,4 @@ runtime/node_modules
 /backups
 /download*.zip
 /.claude
+/theme/dist

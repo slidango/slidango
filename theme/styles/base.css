@@ -1,0 +1,95 @@
+/* Slidango for Slidev: warm paper, Geist with one Instrument Serif punchline, one tango accent.
+   Fonts are bundled (OFL, ../fonts); slides look the same in light and dark app themes. */
+@font-face { font-family: 'Geist'; src: url('../fonts/Geist-Variable.ttf') format('truetype'); font-weight: 100 900; font-display: block; }
+@font-face { font-family: 'Instrument Serif'; src: url('../fonts/InstrumentSerif-Italic.ttf') format('truetype'); font-weight: 400; font-style: italic; font-display: block; }
+@font-face { font-family: 'JetBrains Mono'; src: url('../fonts/JetBrainsMono-Variable.ttf') format('truetype'); font-weight: 100 800; font-display: block; }
+
+:root {
+  --sl-paper: #f3f1ec;
+  --sl-card: #fbfaf7;
+  --sl-ink: #16181d;
+  --sl-muted: #5b606b;
+  --sl-subtle: #646975;
+  --sl-line: #e4e0d8;
+  --sl-tango: #c93a22;
+  --sl-ai: #237570;
+  --sl-code-bg: #16181d;
+  --sl-code-ink: #e8eaed;
+  --slidev-theme-primary: var(--sl-tango);
+  --slidev-slide-container-background: var(--sl-paper);
+}
+
+.slidev-layout {
+  height: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  position: relative;
+  font-family: 'Geist', system-ui, sans-serif;
+  font-size: 1.1rem;
+  line-height: 1.55;
+  color: var(--sl-ink);
+  background: var(--sl-paper);
+  padding: 3rem 4rem 3.4rem;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Headline rule: bold sans, exactly one italic serif punchline in tango (*like this*). */
+.slidev-layout h1,
+.slidev-layout h2,
+.slidev-layout h3 { font-family: 'Geist', sans-serif; color: inherit; margin: 0; }
+.slidev-layout h1 { font-size: 2.6rem; font-weight: 700; line-height: 1.05; letter-spacing: -0.03em; margin-bottom: 1.4rem; }
+.slidev-layout h2 { font-size: 1.6rem; font-weight: 650; line-height: 1.15; letter-spacing: -0.02em; margin: 1.2rem 0 0.6rem; }
+.slidev-layout h3 { font-size: 1.15rem; font-weight: 600; letter-spacing: -0.01em; margin: 1rem 0 0.4rem; }
+.slidev-layout :is(h1, h2) em {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  color: var(--sl-tango);
+}
+.slidev-layout h1 + p { margin-top: -0.6rem; font-size: 1.2rem; color: var(--sl-muted); }
+.slidev-layout p { margin: 0.5rem 0; }
+.slidev-layout strong { font-weight: 650; }
+.slidev-layout a { color: var(--sl-tango); text-decoration: underline; text-underline-offset: 3px; }
+
+.slidev-layout ul { list-style: none; padding-left: 0; margin: 0.6rem 0; }
+.slidev-layout ul > li { position: relative; padding-left: 1.4rem; margin: 0.5rem 0; }
+.slidev-layout ul > li::before {
+  content: '';
+  position: absolute;
+  left: 0.1rem;
+  top: 0.6em;
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 2px;
+  background: var(--sl-tango);
+}
+.slidev-layout ul ul > li::before { background: var(--sl-line); }
+.slidev-layout ol { list-style: none; padding-left: 0; margin: 0.6rem 0; counter-reset: sl-item; }
+.slidev-layout ol > li { position: relative; padding-left: 2.2rem; margin: 0.55rem 0; counter-increment: sl-item; }
+/* Slidev's reset removes list markers; numbers as 01, 02 … in mono tango. */
+.slidev-layout ol > li::before {
+  content: counter(sl-item, decimal-leading-zero);
+  position: absolute;
+  left: 0;
+  top: 0.18em;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.8em;
+  font-weight: 500;
+  color: var(--sl-tango);
+}
+
+.slidev-layout blockquote { margin: 1rem 0; padding: 0.1rem 0 0.1rem 1.1rem; border-left: 2px solid var(--sl-tango); color: var(--sl-muted); }
+.slidev-layout table { border-collapse: collapse; width: 100%; font-size: 0.95rem; }
+.slidev-layout th { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; text-align: left; color: var(--sl-muted); border-bottom: 1px solid var(--sl-ink); padding: 0.5rem 0.7rem; }
+.slidev-layout td { border-bottom: 1px solid var(--sl-line); padding: 0.5rem 0.7rem; }
+
+/* Code is dark in both themes: code left, result right. */
+.slidev-layout pre,
+.slidev-layout .slidev-code { background: var(--sl-code-bg) !important; color: var(--sl-code-ink); border-radius: 10px; padding: 1rem 1.2rem !important; font-size: 0.82rem; line-height: 1.6; }
+.slidev-layout code { font-family: 'JetBrains Mono', monospace; font-variant-ligatures: none; }
+.slidev-layout :not(pre) > code { font-size: 0.86em; background: var(--sl-card); border: 1px solid var(--sl-line); padding: 0.05em 0.35em; border-radius: 6px; }
+
+/* Shared pieces */
+.sl-eyebrow { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--sl-muted); margin-bottom: 0.9rem; }
+.sl-dots { background-image: radial-gradient(circle, var(--sl-line) 1.2px, transparent 1.3px); background-size: 24px 24px; }

@@ -1,0 +1,19 @@
+{
+  "name": "slidev-theme-slidango",
+  "version": "1.0.0",
+  "private": true,
+  "description": "The Slidango look for Slidev: warm paper, Geist with an Instrument Serif punchline, one tango accent.",
+  "license": "MIT",
+  "keywords": ["slidev-theme", "slidev"],
+  "engines": { "slidev": ">=53.0.0" },
+  "dependencies": { "@slidev/cli": "53.0.0" },
+  "slidev": {
+    "colorSchema": "light",
+    "defaults": {
+      "aspectRatio": "16/9",
+      "transition": "fade",
+      "fonts": { "provider": "none", "sans": "Geist", "serif": "Instrument Serif", "mono": "JetBrains Mono" }
+    }
+  },
+  "files": ["layouts", "components", "styles", "fonts", "guide.md", "starter.md"]
+}

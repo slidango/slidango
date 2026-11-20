@@ -38,6 +38,7 @@ apps/web             Vue 3, CodeMirror 6, y-codemirror.next
 packages/shared      Zod schemas, slide parser and operations (on @slidev/parser)
 e2e/                 Playwright tests, stand-ins for the auth proxy and the LLM
 deploy/              Caddy configuration, backup and restore
+theme/               slidev-theme-slidango, the Slidango slide template (pnpm theme:pack)
 docs/                Self-hosting, plans, template format, pilot guide
 ```
 

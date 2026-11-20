@@ -4,22 +4,38 @@ const props = defineProps<{ direction: 'horizontal' | 'vertical'; label: string 
 const emit = defineEmits<{ drag: [delta: number]; reset: [] }>()
 
 function start(event: PointerEvent) {
+  if (event.button !== 0) return
   const handle = event.currentTarget as HTMLElement
-  handle.setPointerCapture(event.pointerId)
+  const id = event.pointerId
+  try {
+    handle.setPointerCapture(id)
+  } catch {
+    // Capture is an optimisation; the window listeners below still end the drag.
+  }
   let last = props.direction === 'horizontal' ? event.clientX : event.clientY
   document.body.classList.add('resizing', `resizing-${props.direction}`)
   const move = (e: PointerEvent) => {
+    // A release we never heard about (e.g. over the preview iframe or outside the window): end the drag.
+    if (e.buttons === 0) return stop()
     const pos = props.direction === 'horizontal' ? e.clientX : e.clientY
     emit('drag', pos - last)
     last = pos
   }
   const stop = () => {
-    handle.removeEventListener('pointermove', move)
+    window.removeEventListener('pointermove', move)
+    window.removeEventListener('pointerup', stop)
+    window.removeEventListener('pointercancel', stop)
+    window.removeEventListener('blur', stop)
+    handle.removeEventListener('lostpointercapture', stop)
+    if (handle.hasPointerCapture?.(id)) handle.releasePointerCapture(id)
     document.body.classList.remove('resizing', `resizing-${props.direction}`)
   }
-  handle.addEventListener('pointermove', move)
-  handle.addEventListener('pointerup', stop, { once: true })
-  handle.addEventListener('pointercancel', stop, { once: true })
+  // Listen on window, not the handle: the drag must end wherever the button is released.
+  window.addEventListener('pointermove', move)
+  window.addEventListener('pointerup', stop)
+  window.addEventListener('pointercancel', stop)
+  window.addEventListener('blur', stop)
+  handle.addEventListener('lostpointercapture', stop)
 }
 
 function key(event: KeyboardEvent) {

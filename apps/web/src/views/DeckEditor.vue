@@ -297,6 +297,7 @@ function present() {
 const narrow = ref(false)
 const tab = ref<'slides' | 'editor' | 'preview' | 'assistant'>('editor')
 const rightWidth = ref(0)
+const rightHeight = ref(0)
 let media: MediaQueryList | undefined
 let observer: ResizeObserver | undefined
 
@@ -308,7 +309,10 @@ onMounted(() => {
   media = window.matchMedia('(max-width: 900px)')
   media.addEventListener('change', onMedia)
   onMedia()
-  observer = new ResizeObserver(([entry]) => (rightWidth.value = entry!.contentRect.width))
+  observer = new ResizeObserver(([entry]) => {
+    rightWidth.value = entry!.contentRect.width
+    rightHeight.value = entry!.contentRect.height
+  })
   watch(
     right,
     (el, old) => {
@@ -326,8 +330,14 @@ onBeforeUnmount(() => {
 })
 
 const CONTROLS_HEIGHT = 37
-/** Preview height: the user's choice, else exactly a 16:9 slide plus its control bar. */
-const previewHeight = computed(() => layout.previewHeight ?? Math.round((rightWidth.value * 9) / 16) + CONTROLS_HEIGHT)
+const ASSISTANT_MIN = 220
+/** Preview height: the user's choice, else a 16:9 slide plus its control bar, leaving room for an open assistant. */
+const previewHeight = computed(() => {
+  if (layout.previewHeight !== null) return layout.previewHeight
+  const natural = Math.round((rightWidth.value * 9) / 16) + CONTROLS_HEIGHT
+  if (!layout.assistantOpen || !rightHeight.value) return natural
+  return Math.max(140, Math.min(natural, rightHeight.value - ASSISTANT_MIN))
+})
 
 function dragRight(delta: number) {
   const total = body.value!.getBoundingClientRect().width - (layout.slidesOpen ? layout.slidesWidth : 0)
@@ -446,7 +456,7 @@ const showShortcuts = ref(false)
       </template>
 
       <!-- Editor (kept mounted on narrow screens so the CodeMirror state survives tab switches) -->
-      <section v-show="narrow ? tab === 'editor' : true" class="editor" :style="narrow ? {} : { flex: `${1 - layout.rightShare} 1 0` }">
+      <section v-show="narrow ? tab === 'editor' : layout.editorOpen" class="editor" :style="narrow ? {} : { flex: `${1 - layout.rightShare} 1 0` }">
         <div class="editor-host">
           <SlidesEditor
             v-if="synced && provider"
@@ -467,13 +477,17 @@ const showShortcuts = ref(false)
             {{ problems.size === 1 ? '1 slide with a problem' : `${problems.size} slides with problems` }}: slide {{ firstProblem.index }} – {{ firstProblem.message }}
           </button>
           <span v-else class="ok">No problems</span>
+          <button v-if="!narrow" class="ghost icon collapse" title="Collapse Markdown editor" aria-label="Collapse Markdown editor" @click="layout.editorOpen = false">«</button>
         </footer>
       </section>
+      <button v-if="!narrow && !layout.editorOpen" class="rail" title="Expand Markdown editor" aria-label="Expand Markdown editor" @click="layout.editorOpen = true">
+        <span>Markdown</span>
+      </button>
 
-      <SplitHandle v-if="!narrow" direction="horizontal" label="Width of preview and AI panel" @drag="dragRight" @reset="layout.rightShare = 0.42" />
+      <SplitHandle v-if="!narrow && layout.editorOpen" direction="horizontal" label="Width of preview and AI panel" @drag="dragRight" @reset="layout.rightShare = 0.42" />
 
       <!-- Preview over assistant -->
-      <section v-show="narrow ? tab === 'preview' || tab === 'assistant' : true" ref="right" class="right" :style="narrow ? {} : { flex: `${layout.rightShare} 1 0` }">
+      <section v-show="narrow ? tab === 'preview' || tab === 'assistant' : true" ref="right" class="right" :style="narrow ? {} : { flex: layout.editorOpen ? `${layout.rightShare} 1 0` : '1 1 0' }">
         <template v-if="synced && showBriefing">
           <div v-show="!narrow || tab === 'preview'" class="briefing-host">
             <BriefingPane :deck-id="deck.id" :empty="empty" :read-only="deck.archived" @phase="draftPhase = $event">
@@ -578,6 +592,7 @@ const showShortcuts = ref(false)
 .statusbar { display: flex; gap: 0.75rem; white-space: nowrap; align-items: center; padding: 0.25rem 0.75rem; border-top: 1px solid var(--border); font: 400 11px/1.4 var(--font-mono); color: var(--muted); background: var(--surface); min-width: 0; }
 .statusbar .problem { border: none; background: var(--warning-soft); color: var(--warning); padding: 0.1rem 0.5rem; border-radius: var(--radius-sm); font: 500 11px/1.4 var(--font-mono); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .statusbar .ok { color: var(--success); }
+.statusbar .collapse { margin-left: auto; padding: 0 0.4rem; min-width: 0; font-size: 13px; }
 .right { display: flex; flex-direction: column; background: var(--surface); }
 .preview-host { flex: 0 0 auto; min-height: 0; display: flex; flex-direction: column; }
 .preview-host > * { flex: 1; }

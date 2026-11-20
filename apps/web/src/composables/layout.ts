@@ -6,11 +6,13 @@ export interface EditorLayout {
   /** Height of the preview within the right column; null = exactly its 16:9 height. */
   previewHeight: number | null
   slidesOpen: boolean
+  /** Markdown editor visible; collapsed it becomes a rail like the slide list. */
+  editorOpen: boolean
   assistantOpen: boolean
   slidesWidth: number
 }
 
-const DEFAULTS: EditorLayout = { rightShare: 0.42, previewHeight: null, slidesOpen: true, assistantOpen: true, slidesWidth: 180 }
+const DEFAULTS: EditorLayout = { rightShare: 0.42, previewHeight: null, slidesOpen: true, editorOpen: true, assistantOpen: true, slidesWidth: 180 }
 
 const KEY = 'slidango:layout'
 const LEGACY_KEY = 'slidev-collab:layout' // before the rename to Slidango

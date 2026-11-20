@@ -21,6 +21,7 @@ const streaming = ref<string | null>(null)
 const error = ref<string | null>(null)
 const configured = ref(true)
 const list = ref<HTMLElement>()
+const content = ref<HTMLElement>()
 const textarea = ref<HTMLTextAreaElement>()
 let controller: AbortController | null = null
 
@@ -64,7 +65,9 @@ async function load() {
   const state = await api.llmState(props.deckId, session)
   // The user switched conversations while this request ran.
   if (session !== sessionId.value) return
-  const grew = state.messages.length !== messages.value.length
+  const openExternal = (list: Proposal[]) => list.filter((p) => p.source === 'mcp' && p.status === 'open').length
+  // New messages, or a new suggestion from an MCP client, scroll into view.
+  const grew = state.messages.length !== messages.value.length || openExternal(state.proposals) > openExternal([...proposals.value.values()])
   sessions.value = state.sessions
   messages.value = state.messages
   proposals.value = new Map(state.proposals.map((p) => [p.id, p]))
@@ -72,8 +75,28 @@ async function load() {
 }
 
 function scrollDown() {
+  stickToBottom = true
   void nextTick(() => list.value?.scrollTo({ top: list.value.scrollHeight }))
 }
+
+/**
+ * Keeps the newest message in view while the panel resizes (the preview above settles its height
+ * after the first render, and the user drags dividers). Only while the list is scrolled to the end,
+ * so reading older messages is never interrupted.
+ */
+let stickToBottom = true
+function onScroll() {
+  const el = list.value
+  if (el) stickToBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 8
+}
+const resizeObserver = new ResizeObserver(() => {
+  if (stickToBottom && list.value) list.value.scrollTop = list.value.scrollHeight
+})
+// Both the list's box (panel resizes) and its content (cards render their diff late) count.
+watch([list, content], (els, olds) => {
+  for (const el of olds ?? []) if (el) resizeObserver.unobserve(el)
+  for (const el of els) if (el) resizeObserver.observe(el)
+})
 
 async function send() {
   const text = input.value.trim()
@@ -128,6 +151,7 @@ onMounted(async () => {
   await load()
 })
 onBeforeUnmount(() => {
+  resizeObserver.disconnect()
   clearInterval(timer)
   controller?.abort()
 })
@@ -171,7 +195,8 @@ defineExpose({ focus: () => textarea.value?.focus() })
       <button v-if="collapsible" class="ghost icon" title="Collapse Slidango AI" aria-label="Collapse Slidango AI" @click="emit('collapse')">⌄</button>
     </header>
     <p v-if="!configured" class="hint">No LLM configured. An admin can set one up under Settings → Slidango AI on the overview page.</p>
-    <div ref="list" class="messages">
+    <div ref="list" class="messages" @scroll.passive="onScroll">
+      <div ref="content" class="messages-inner">
       <div v-for="proposal in external" :key="proposal.id" class="message assistant external">
         <div class="author">{{ proposal.client ?? 'MCP client' }} · via your API token</div>
         <div v-if="proposal.summary" class="text">{{ proposal.summary }}</div>
@@ -196,6 +221,7 @@ defineExpose({ focus: () => textarea.value?.focus() })
         <div class="text">{{ streaming || '…' }}</div>
       </div>
       <p v-if="error" class="error">{{ error }}</p>
+      </div>
     </div>
     <form v-if="!readOnly" class="composer" @submit.prevent="send">
       <textarea
@@ -218,7 +244,8 @@ header { display: flex; gap: 0.5rem; align-items: center; padding: 0.3rem 0.4rem
 h2 { font-size: 14px; font-weight: 600; margin: 0; flex: 1; }
 .auto { font-size: 0.8rem; display: flex; gap: 0.3rem; align-items: center; }
 .hint { margin: 0; padding: 0.5rem 0.75rem; font-size: 0.85rem; background: var(--warning-soft); color: var(--warning); }
-.messages { flex: 1; overflow: auto; padding: 0.6rem 0.75rem; display: flex; flex-direction: column; gap: 0.6rem; }
+.messages { flex: 1; min-height: 0; overflow: auto; }
+.messages-inner { padding: 0.6rem 0.75rem 1rem; display: flex; flex-direction: column; gap: 0.6rem; }
 .empty { font-size: 0.85rem; }
 .message { display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.9rem; }
 .message.user { align-items: flex-end; }

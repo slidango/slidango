@@ -19,6 +19,23 @@
   --slidev-slide-container-background: var(--sl-paper);
 }
 
+/* Dark variant, chosen per deck with `colorSchema: dark` in the headmatter.
+   It is a property of the deck (preview, presenting, export), not of the app theme. */
+html.dark {
+  --sl-paper: #0f1115;
+  --sl-card: #1a1d24;
+  --sl-ink: #e8eaed;
+  --sl-muted: #b4bac5;
+  --sl-subtle: #8b93a1;
+  --sl-line: #2a2e37;
+  --sl-tango: #ff7a5c;
+  --sl-ai: #62b6b3;
+  --sl-code-bg: #1a1d24;
+  --sl-code-ink: #e8eaed;
+}
+html.dark .slidev-layout pre,
+html.dark .slidev-layout .slidev-code { border: 1px solid var(--sl-line); }
+
 .slidev-layout {
   height: 100%;
   box-sizing: border-box;

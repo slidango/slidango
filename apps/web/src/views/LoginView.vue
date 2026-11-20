@@ -4,19 +4,17 @@ import BrandLogo from '../components/BrandLogo.vue'
 import { api } from '../api'
 import { currentUser, needsLogin } from '../user'
 
-// Name and e-mail are remembered so returning users only type the password.
+// The email is remembered so returning users only type the password.
 const STORAGE_KEY = 'slidango:login'
-const LEGACY_STORAGE_KEY = 'slidev-collab:login' // before the rename to Slidango
-function remembered(): { name?: string; email?: string } {
+function rememberedEmail(): string {
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem(LEGACY_STORAGE_KEY) ?? '{}')
+    return (JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}') as { email?: string }).email ?? ''
   } catch {
-    return {}
+    return ''
   }
 }
 
-const name = ref(remembered().name ?? '')
-const email = ref(remembered().email ?? '')
+const email = ref(rememberedEmail())
 const password = ref('')
 const error = ref<string | null>(null)
 const busy = ref(false)
@@ -26,9 +24,9 @@ async function submit() {
   busy.value = true
   try {
     const next = new URLSearchParams(window.location.search).get('next') ?? undefined
-    const result = await api.login({ name: name.value, email: email.value, password: password.value, next })
+    const result = await api.login({ email: email.value, password: password.value, next })
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ name: name.value, email: email.value }))
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ email: email.value }))
     } catch {
       // storage unavailable (private mode): nothing to remember
     }
@@ -58,20 +56,16 @@ async function submit() {
       <BrandLogo :size="22" wordmark class="logo" />
       <h1>Write <em>together.</em></h1>
       <label>
-        Name
-        <input v-model="name" autocomplete="name" required maxlength="100" :autofocus="!name" />
-      </label>
-      <label>
         Email
-        <input v-model="email" type="email" autocomplete="email" required maxlength="200" />
+        <input v-model="email" type="email" autocomplete="username" required maxlength="200" :autofocus="!email" />
       </label>
       <label>
         Password
-        <input v-model="password" type="password" autocomplete="current-password" required :autofocus="!!name" />
+        <input v-model="password" type="password" autocomplete="current-password" required :autofocus="!!email" />
       </label>
       <p v-if="error" class="error" role="alert">{{ error }}</p>
       <button class="primary" type="submit" :disabled="busy">Sign in</button>
-      <p class="muted hint">Your name and email are shown to others in presence, versions and the AI history.</p>
+      <p class="muted hint">No account yet, or forgot your password? Ask an admin for a link.</p>
     </form>
   </main>
 </template>

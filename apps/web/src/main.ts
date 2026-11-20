@@ -15,6 +15,8 @@ const router = createRouter({
     { path: '/admin', redirect: { path: '/', query: { settings: null } } },
     // Target of the preview login redirect; the login form itself is shown by App.vue.
     { path: '/login', redirect: '/' },
+    // Rendered by App.vue (works signed out too); the route only keeps the router quiet.
+    { path: '/invite/:token', component: { render: () => null } },
   ],
 })
 

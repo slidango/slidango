@@ -21,6 +21,7 @@ import MenuButton from '../components/MenuButton.vue'
 import PreviewPane from '../components/PreviewPane.vue'
 import SlideList, { type SlidePeer } from '../components/SlideList.vue'
 import SlidesEditor, { type Highlight, type Problem } from '../components/SlidesEditor.vue'
+import ShareDialog from '../components/ShareDialog.vue'
 import SplitHandle from '../components/SplitHandle.vue'
 import TemplatePanel from '../components/TemplatePanel.vue'
 import VersionsPanel from '../components/VersionsPanel.vue'
@@ -37,6 +38,14 @@ interface Peer extends SlidePeer {
 }
 
 const deck = ref<Deck | null>(null)
+/** Read-only for archived decks and for people who may only view (viewer role, team-view). */
+const readOnly = computed(() => !deck.value || deck.value.archived || deck.value.can?.edit === false)
+const canManage = computed(() => deck.value?.can?.manage ?? false)
+const sharingOpen = ref(false)
+async function reloadDeck() {
+  const fresh = await api.deck(props.id)
+  deck.value = { ...fresh, previewUrl: fresh.previewUrl ?? deck.value?.previewUrl }
+}
 const error = ref<string | null>(null)
 const status = ref<'connecting' | 'connected' | 'disconnected'>('connecting')
 const synced = ref(false)
@@ -330,6 +339,7 @@ onBeforeUnmount(() => {
 })
 
 const CONTROLS_HEIGHT = 37
+/** Preview height: the user's choice, else exactly a 16:9 slide plus its control bar. */
 const ASSISTANT_MIN = 220
 /** Preview height: the user's choice, else a 16:9 slide plus its control bar, leaving room for an open assistant. */
 const previewHeight = computed(() => {
@@ -358,7 +368,7 @@ function onShortcut(event: KeyboardEvent) {
   if (!mod) return
   if (event.key.toLowerCase() === 's' && !event.altKey) {
     event.preventDefault()
-    if (!deck.value?.archived) void startSaving()
+    if (!readOnly.value) void startSaving()
   } else if (event.altKey && (event.key === 'ArrowRight' || event.key === 'ArrowLeft')) {
     event.preventDefault()
     preview.value?.step(event.key === 'ArrowRight' ? 'next' : 'prev')
@@ -382,13 +392,14 @@ const showShortcuts = ref(false)
         <form v-if="editingTitle" @submit.prevent="saveTitle">
           <input v-model="titleDraft" autofocus maxlength="200" @blur="saveTitle" @keydown.esc="editingTitle = false" />
         </form>
-        <h1 v-else :title="deck.archived ? 'Archived' : 'Double-click to rename'" @dblclick="!deck.archived && startRename()">
+        <h1 v-else :title="deck.archived ? 'Archived' : canManage ? 'Double-click to rename' : deck.title" @dblclick="canManage && !deck.archived && startRename()">
           {{ deck.title }}
         </h1>
         <span class="connection" :class="status" :title="statusLabel" data-testid="status">
           <span class="dot" />{{ statusLabel }}
         </span>
         <span v-if="deck.archived" class="tag">Archived · read-only</span>
+        <span v-else-if="readOnly" class="tag">View only</span>
       </div>
 
       <div class="actions">
@@ -398,7 +409,7 @@ const showShortcuts = ref(false)
             {{ peer.name.slice(0, 1).toUpperCase() }}
           </li>
         </ul>
-        <template v-if="!deck.archived">
+        <template v-if="!readOnly">
           <form v-if="savingVersion" class="save" @submit.prevent="saveVersion">
             <input ref="versionInput" v-model="versionMessage" placeholder="Description (optional)" maxlength="500" @keydown.esc="savingVersion = false" />
             <button class="primary" type="submit">Save</button>
@@ -407,9 +418,10 @@ const showShortcuts = ref(false)
         </template>
         <button class="present ghost" :disabled="!deck.previewUrl" title="Present in a new tab" @click="present">Present</button>
         <MenuButton label="⋯" title="More actions" class="more">
+          <button @click="sharingOpen = true">Share …</button>
           <button @click="drawer = 'versions'">Versions</button>
-          <button @click="drawer = 'template'">Template <span class="muted">{{ deck.themeVersion ?? 'Default' }}</span></button>
-          <button v-if="!deck.archived" @click="fileInput?.click()">Insert image …</button>
+          <button v-if="canManage" @click="drawer = 'template'">Template <span class="muted">{{ deck.themeVersion ?? 'Default' }}</span></button>
+          <button v-if="!readOnly" @click="fileInput?.click()">Insert image …</button>
           <hr />
           <button @click="toggleTheme">{{ theme === 'dark' ? 'Light theme' : 'Dark theme' }}</button>
           <button @click="showShortcuts = true">Keyboard shortcuts</button>
@@ -443,7 +455,7 @@ const showShortcuts = ref(false)
             :marked="marked"
             :problems="problems"
             :peers="peersBySlide"
-            :read-only="deck.archived"
+            :read-only="readOnly"
             @select="editor?.goToLine($event); narrow && (tab = 'editor')"
             @move="onMove"
             @collapse="layout.slidesOpen = false"
@@ -463,7 +475,7 @@ const showShortcuts = ref(false)
             ref="editor"
             :text="text"
             :awareness="provider.awareness!"
-            :read-only="deck.archived"
+            :read-only="readOnly"
             :highlights="highlights"
             :problems="editorProblems"
             @cursor-line="onCursorLine"
@@ -490,7 +502,7 @@ const showShortcuts = ref(false)
       <section v-show="narrow ? tab === 'preview' || tab === 'assistant' : true" ref="right" class="right" :style="narrow ? {} : { flex: layout.editorOpen ? `${layout.rightShare} 1 0` : '1 1 0' }">
         <template v-if="synced && showBriefing">
           <div v-show="!narrow || tab === 'preview'" class="briefing-host">
-            <BriefingPane :deck-id="deck.id" :empty="empty" :read-only="deck.archived" @phase="draftPhase = $event">
+            <BriefingPane :deck-id="deck.id" :empty="empty" :read-only="readOnly" @phase="draftPhase = $event">
               <PreviewPane ref="preview" v-model:follow="followCursor" :deck-id="deck.id" :slide="slide" :total="slides.length" @navigated="onPreviewNavigated" />
             </BriefingPane>
           </div>
@@ -511,7 +523,7 @@ const showShortcuts = ref(false)
                 :deck-id="deck.id"
                 :slides="slides"
                 :cursor-slide="slide"
-                :read-only="deck.archived"
+                :read-only="readOnly"
                 collapsible
                 @proposals="proposals = $event"
                 @collapse="layout.assistantOpen = false"
@@ -523,17 +535,26 @@ const showShortcuts = ref(false)
           </template>
         </template>
         <div v-if="narrow" v-show="tab === 'assistant'" class="assistant-host">
-          <AssistantPanel ref="assistant" :deck-id="deck.id" :slides="slides" :cursor-slide="slide" :read-only="deck.archived" @proposals="proposals = $event" />
+          <AssistantPanel ref="assistant" :deck-id="deck.id" :slides="slides" :cursor-slide="slide" :read-only="readOnly" @proposals="proposals = $event" />
         </div>
       </section>
 
       <!-- Drawers -->
       <div v-if="drawer" class="scrim" @click="drawer = null" />
       <aside v-if="drawer" class="drawer">
-        <VersionsPanel v-if="drawer === 'versions'" ref="versionsPanel" :deck-id="deck.id" :read-only="deck.archived" @close="drawer = null" />
+        <VersionsPanel v-if="drawer === 'versions'" ref="versionsPanel" :deck-id="deck.id" :read-only="readOnly" @close="drawer = null" />
         <TemplatePanel v-else :deck="deck" @updated="onTemplateUpdated" @close="drawer = null" />
       </aside>
     </main>
+
+    <ShareDialog
+      v-if="sharingOpen"
+      :deck-id="deck.id"
+      :title="deck.title"
+      :can-manage="canManage"
+      @changed="reloadDeck"
+      @close="sharingOpen = false"
+    />
 
     <div v-if="showShortcuts" class="scrim" @click="showShortcuts = false">
       <div class="dialog" role="dialog" aria-label="Keyboard shortcuts" @click.stop>

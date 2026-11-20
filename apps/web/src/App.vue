@@ -2,14 +2,18 @@
 import { ref } from 'vue'
 import { appErrors, dismissError } from './errors'
 import { currentUser, needsLogin, userReady } from './user'
+import InviteView from './views/InviteView.vue'
 import LoginView from './views/LoginView.vue'
 
+// Invitation and reset links work signed in or not, so they are handled before the login gate.
+const inviteToken = /^\/invite\/([A-Za-z0-9_-]+)\/?$/.exec(window.location.pathname)?.[1] ?? null
 const error = ref<string | null>(null)
 userReady.catch((e: Error) => (error.value = e.message))
 </script>
 
 <template>
-  <div v-if="error" class="fatal">Sign-in failed: {{ error }}</div>
+  <InviteView v-if="inviteToken" :token="inviteToken" />
+  <div v-else-if="error" class="fatal">Sign-in failed: {{ error }}</div>
   <LoginView v-else-if="needsLogin" />
   <RouterView v-else-if="currentUser" />
   <div class="errors" role="alert" aria-live="assertive">

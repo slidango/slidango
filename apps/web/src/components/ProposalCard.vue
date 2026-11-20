@@ -44,6 +44,7 @@ async function act(action: 'apply' | 'reject' | 'undo') {
   <div class="proposal" :class="proposal.status" data-testid="proposal">
     <header>
       <strong>Suggestion</strong>
+      <span v-if="proposal.source === 'mcp'" class="badge ai" :title="`Made by ${proposal.client ?? 'an MCP client'} with your API token`">{{ proposal.client ?? 'MCP' }}</span>
       <span class="status">{{ STATUS[proposal.status] }}</span>
       <button class="link" @click="open = !open">{{ open ? 'Hide details' : 'Details' }}</button>
     </header>

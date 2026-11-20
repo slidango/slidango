@@ -14,15 +14,16 @@ function previewUrl(env: NodeJS.ProcessEnv, port: number) {
 
 /**
  * `oidc`: identity comes from oauth2-proxy headers (Caddy forward_auth).
- * `password`: one shared password, checked by the app itself; identity comes from a signed cookie.
+ * `local`: one account per person (invite link + password), checked by the app; identity comes from a signed cookie.
  */
 export type AuthConfig =
-  | { mode: 'oidc' }
   | {
-      mode: 'password'
-      password: string
-      /** Logging in with this password grants admin rights. Null: nobody is admin. */
-      adminPassword: string | null
+      mode: 'oidc'
+      /** Only these email domains may sign in; empty: anyone the IdP lets through. */
+      allowedDomains: string[]
+    }
+  | {
+      mode: 'local'
       /** Signs the session cookie. */
       secret: string
       /** Cookie domain shared by the app and all preview hosts, e.g. `slides.intern`. */
@@ -31,24 +32,28 @@ export type AuthConfig =
       sessionDays: number
     }
 
-function authConfig(env: NodeJS.ProcessEnv, publicUrl: string, previewUrlTemplate: string): AuthConfig {
-  const mode = (env.AUTH_MODE ?? 'oidc').trim().toLowerCase()
-  if (mode === 'oidc') return { mode }
-  if (mode !== 'password') throw new Error(`AUTH_MODE must be "oidc" or "password", got "${env.AUTH_MODE}"`)
-  const password = env.AUTH_PASSWORD ?? ''
-  const adminPassword = env.AUTH_ADMIN_PASSWORD?.trim() ? env.AUTH_ADMIN_PASSWORD : null
-  const secret = env.AUTH_SECRET ?? ''
-  if (password.length < 8) throw new Error('AUTH_MODE=password needs AUTH_PASSWORD (at least 8 characters)')
-  if (adminPassword !== null && adminPassword === password) {
-    throw new Error('AUTH_ADMIN_PASSWORD must differ from AUTH_PASSWORD')
+function authConfig(env: NodeJS.ProcessEnv, publicUrl: string, previewUrlTemplate: string, warnings: string[]): AuthConfig {
+  const raw = (env.AUTH_MODE ?? 'oidc').trim().toLowerCase()
+  if (raw === 'oidc') {
+    const allowedDomains = (env.ALLOWED_EMAIL_DOMAINS ?? '')
+      .split(',')
+      .map((d) => d.trim().toLowerCase().replace(/^@/, ''))
+      .filter(Boolean)
+    return { mode: 'oidc', allowedDomains }
   }
-  if (secret.length < 32) throw new Error('AUTH_MODE=password needs AUTH_SECRET (at least 32 characters)')
+  if (raw !== 'local' && raw !== 'password') throw new Error(`AUTH_MODE must be "oidc" or "local", got "${env.AUTH_MODE}"`)
+  if (raw === 'password') {
+    warnings.push('AUTH_MODE=password is deprecated: it now means AUTH_MODE=local (one account per person, invited by an admin).')
+  }
+  if (env.AUTH_PASSWORD || env.AUTH_ADMIN_PASSWORD) {
+    warnings.push('AUTH_PASSWORD and AUTH_ADMIN_PASSWORD are ignored: people sign in with their own accounts now.')
+  }
+  const secret = env.AUTH_SECRET ?? ''
+  if (secret.length < 32) throw new Error('AUTH_MODE=local needs AUTH_SECRET (at least 32 characters)')
   // `https://{slug}.slides.intern` -> `slides.intern`: the cookie must reach every preview host.
   const previewHost = /^[a-z]+:\/\/\{slug\}\.([^/:]+)/i.exec(previewUrlTemplate)?.[1] ?? null
   return {
-    mode,
-    password,
-    adminPassword,
+    mode: 'local',
     secret,
     cookieDomain: env.AUTH_COOKIE_DOMAIN?.trim() || previewHost,
     secure: publicUrl.startsWith('https:'),
@@ -62,8 +67,10 @@ export interface Config {
   publicUrl: string
   databaseUrl: string
   dataDir: string
-  /** Admins in `oidc` mode. Ignored in `password` mode (emails are self-declared there). */
+  /** Promoted to admin when they sign in (never demoted); in `local` mode they also get a setup link on start. */
   adminEmails: string[]
+  /** Configuration problems worth logging at start (deprecated variables etc.). */
+  warnings: string[]
   auth: AuthConfig
   /** Fallback user when no proxy headers are present. Only for local development. */
   devUser: { email: string; name: string } | null
@@ -90,11 +97,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const port = Number(env.PORT ?? 3000)
   const publicUrl = env.PUBLIC_URL ?? 'http://localhost:5173'
   const preview = previewUrl(env, port)
+  const warnings: string[] = []
   return {
+    warnings,
     port,
     host: env.HOST ?? '0.0.0.0',
     publicUrl,
-    auth: authConfig(env, publicUrl, preview),
+    auth: authConfig(env, publicUrl, preview, warnings),
     databaseUrl: env.DATABASE_URL ?? 'pglite:./data/pglite',
     dataDir: resolve(env.DATA_DIR ?? './data'),
     adminEmails: (env.ADMIN_EMAILS ?? '')

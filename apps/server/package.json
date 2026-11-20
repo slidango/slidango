@@ -9,7 +9,8 @@
     "typecheck": "tsc -p .",
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
-    "eval": "tsx src/llm/eval.ts"
+    "eval": "tsx src/llm/eval.ts",
+    "admin:invite": "tsx src/cli.ts invite"
   },
   "dependencies": {
     "@electric-sql/pglite": "0.5.15",
@@ -18,6 +19,7 @@
     "@fastify/static": "9.3.0",
     "@fastify/websocket": "11.3.7",
     "@hocuspocus/server": "4.8.0",
+    "@modelcontextprotocol/sdk": "1.32.2",
     "@slidango/shared": "workspace:*",
     "drizzle-orm": "0.45.4",
     "fastify": "5.12.8",

@@ -6,7 +6,7 @@ services:
     environment:
       APP_DOMAIN: ${APP_DOMAIN:?set APP_DOMAIN in .env (see .env.example)}
       PREVIEW_DOMAIN: ${PREVIEW_DOMAIN:?set PREVIEW_DOMAIN in .env}
-      AUTH_MODE: ${AUTH_MODE:?set AUTH_MODE in .env (oidc or password)}
+      AUTH_MODE: ${AUTH_MODE:?set AUTH_MODE in .env (oidc or local)}
     volumes:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
       - ./deploy/caddy-auth:/etc/caddy/auth:ro
@@ -24,12 +24,14 @@ services:
       PUBLIC_URL: https://${APP_DOMAIN:?set APP_DOMAIN in .env (see .env.example)}
       PREVIEW_DOMAIN: ${PREVIEW_DOMAIN:?set PREVIEW_DOMAIN in .env}
       DATABASE_URL: postgres://slides:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/slides
-      AUTH_MODE: ${AUTH_MODE:?set AUTH_MODE in .env (oidc or password)}
-      # oidc only: admins by e-mail. password mode: admin = logged in with AUTH_ADMIN_PASSWORD.
+      AUTH_MODE: ${AUTH_MODE:?set AUTH_MODE in .env (oidc or local)}
+      # Promoted to admin on sign-in; local mode also logs a setup link for them on start.
       ADMIN_EMAILS: ${ADMIN_EMAILS:-}
-      AUTH_PASSWORD: ${AUTH_PASSWORD:-}
-      AUTH_ADMIN_PASSWORD: ${AUTH_ADMIN_PASSWORD:-}
+      # oidc, optional: restrict sign-in to these email domains.
+      ALLOWED_EMAIL_DOMAINS: ${ALLOWED_EMAIL_DOMAINS:-}
+      # local: signs session cookies (at least 32 characters).
       AUTH_SECRET: ${AUTH_SECRET:-}
+      AUTH_SESSION_DAYS: ${AUTH_SESSION_DAYS:-30}
       # Defaults for the assistant; admins can change them in the UI.
       LLM_BASE_URL: ${LLM_BASE_URL:-}
       LLM_MODEL: ${LLM_MODEL:-}

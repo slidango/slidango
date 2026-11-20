@@ -14,13 +14,25 @@ export const updateDeckSchema = z.object({
 })
 export type UpdateDeck = z.infer<typeof updateDeckSchema>
 
+export const deckAccessSchema = z.enum(['team-edit', 'team-view', 'members'])
+/** `team-edit`: every signed-in user may edit · `team-view`: everyone may view · `members`: members only. */
+export type DeckAccess = z.infer<typeof deckAccessSchema>
+
+export const deckRoleSchema = z.enum(['owner', 'editor', 'viewer'])
+export type DeckRole = z.infer<typeof deckRoleSchema>
+
 export const deckSchema = z.object({
   id: z.string(),
   slug: z.string(),
   title: z.string(),
   ownerId: z.string(),
   themeVersion: z.string().nullable(),
+  access: deckAccessSchema,
   archived: z.boolean(),
+  /** The requesting user's membership role, if any; set where a user is known. */
+  role: deckRoleSchema.nullable().optional(),
+  /** What the requesting user may do beyond viewing; set where a user is known. */
+  can: z.object({ edit: z.boolean(), manage: z.boolean() }).optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
   /** Full Slidev preview (for presenting); set on list and detail responses. */
@@ -158,6 +170,10 @@ export interface Proposal {
   status: 'open' | 'applied' | 'rejected' | 'stale' | 'undone'
   slideCount: number
   createdAt: string
+  /** Slidango AI in the app, or an external client over MCP. */
+  source: 'assistant' | 'mcp'
+  /** MCP only: the client (token) name, e.g. "Claude Code". */
+  client: string | null
 }
 
 export const chatRequestSchema = z.object({
@@ -191,3 +207,109 @@ export type LlmEvent =
   | { type: 'error'; message: string }
   | { type: 'done' }
 export { validateSlide } from './validate'
+
+// --- Accounts, sharing, tokens ------------------------------------------------
+
+export type AuthMode = 'oidc' | 'local'
+
+export interface DeckMember {
+  userId: string
+  name: string
+  email: string
+  role: DeckRole
+}
+
+export interface DeckSharing {
+  access: DeckAccess
+  members: DeckMember[]
+}
+
+export const setAccessSchema = z.object({ access: deckAccessSchema })
+export const setMemberSchema = z.object({ role: deckRoleSchema })
+
+/** Another signed-in user, as offered when sharing a deck. */
+export interface DirectoryUser {
+  id: string
+  name: string
+  email: string
+}
+
+/** A user as admins see it in Settings → People. */
+export interface Person {
+  id: string
+  email: string
+  name: string
+  isAdmin: boolean
+  status: 'active' | 'disabled'
+  /** local mode: false until an invitation has been accepted. */
+  hasPassword: boolean
+  lastSeenAt: string | null
+  createdAt: string
+  activeTokens: number
+}
+
+export interface PendingInvite {
+  id: string
+  email: string
+  purpose: 'invite' | 'reset'
+  grantAdmin: boolean
+  expiresAt: string
+}
+
+export const createInviteSchema = z.object({
+  email: z.string().trim().toLowerCase().email().max(200),
+  grantAdmin: z.boolean().default(false),
+})
+
+/** Returned once: the link only exists in this response. */
+export interface InviteLink {
+  url: string
+  expiresAt: string
+}
+
+export const updatePersonSchema = z.object({
+  status: z.enum(['active', 'disabled']).optional(),
+  isAdmin: z.boolean().optional(),
+})
+
+export const passwordSchema = z.string().min(10, 'Use at least 10 characters.').max(200)
+
+export const acceptInviteSchema = z.object({
+  name: z.string().trim().min(1).max(100),
+  password: passwordSchema,
+})
+
+export const changePasswordSchema = z.object({
+  current: z.string().max(200),
+  password: passwordSchema,
+})
+
+export const updateMeSchema = z.object({
+  autoApply: z.boolean().optional(),
+  name: z.string().trim().min(1).max(100).optional(),
+})
+
+export const tokenScopeSchema = z.enum(['read', 'write'])
+export type TokenScope = z.infer<typeof tokenScopeSchema>
+
+export const createTokenSchema = z.object({
+  name: z.string().trim().min(1).max(60),
+  scope: tokenScopeSchema,
+  /** Days until expiry; null never expires. */
+  expiresInDays: z.union([z.literal(30), z.literal(90), z.literal(365)]).nullable(),
+})
+
+export interface ApiToken {
+  id: string
+  name: string
+  prefix: string
+  scope: TokenScope
+  createdAt: string
+  lastUsedAt: string | null
+  expiresAt: string | null
+}
+
+/** Returned once on creation; only the hash is stored. */
+export interface CreatedToken extends ApiToken {
+  token: string
+}

@@ -104,7 +104,10 @@ describe('API', () => {
     const slides = await readFile(join(dataDir, 'decks', first.id, 'slides.md'), 'utf8')
     expect(slides).toContain('editor: false')
 
-    const renamed = await app.inject({ method: 'PATCH', url: `/api/decks/${first.id}`, headers: bob, payload: { title: 'Neu' } })
+    // Renaming is "manage": the owner may, another signed-in user (team-edit) may not.
+    const denied = await app.inject({ method: 'PATCH', url: `/api/decks/${first.id}`, headers: bob, payload: { title: 'Neu' } })
+    expect(denied.statusCode).toBe(403)
+    const renamed = await app.inject({ method: 'PATCH', url: `/api/decks/${first.id}`, headers: alice, payload: { title: 'Neu' } })
     expect(renamed.json()).toMatchObject({ title: 'Neu', slug: 'quartalsbericht-q4' })
 
     await app.inject({ method: 'DELETE', url: `/api/decks/${second.id}`, headers: alice })

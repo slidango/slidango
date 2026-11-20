@@ -94,6 +94,9 @@ onMounted(async () => {
             <td class="title">
               <RouterLink :to="`/decks/${deck.id}`">{{ deck.title }}</RouterLink>
               <span v-if="deck.archived" class="badge">archived</span>
+              <span v-if="deck.access === 'members'" class="badge" title="Only members see this deck">members only</span>
+              <span v-else-if="deck.access === 'team-view'" class="badge" title="Everyone can view, members edit">view only for team</span>
+              <span v-if="deck.role === 'viewer' || deck.can?.edit === false" class="badge">you can view</span>
             </td>
             <td class="muted meta" data-label="Template">{{ deck.themeVersion ?? 'Default' }}</td>
             <td class="muted meta" data-label="Edited">{{ dateFormat.format(new Date(deck.updatedAt)) }}</td>
@@ -110,7 +113,8 @@ onMounted(async () => {
                 ><span aria-hidden="true">▶</span> Present</a>
                 <MenuButton label="⋯" :title="`More actions for ${deck.title}`">
                   <a v-if="deck.previewUrl" :href="`${deck.previewUrl}/presenter/1`" target="_blank" rel="noopener">Presenter view</a>
-                  <button @click="toggleArchive(deck)">{{ deck.archived ? 'Restore' : 'Archive' }}</button>
+                  <button v-if="deck.can?.manage" @click="toggleArchive(deck)">{{ deck.archived ? 'Restore' : 'Archive' }}</button>
+                  <span v-if="!deck.previewUrl && !deck.can?.manage" class="muted none">No actions</span>
                 </MenuButton>
               </div>
             </td>

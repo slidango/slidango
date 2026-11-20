@@ -1,13 +1,15 @@
 <script setup lang="ts">
-/** Admin settings (templates, LLM, running previews) as a modal over the current page. */
+/** Admin settings (people, templates, LLM, running previews) as a modal over the current page. */
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import type { Theme } from '@slidango/shared'
 import { api, type RunningPreview } from '../api'
+import PeoplePanel from './PeoplePanel.vue'
 
 const emit = defineEmits<{ close: [] }>()
 const dialog = ref<HTMLDialogElement>()
-const tab = ref<'templates' | 'llm' | 'previews'>('templates')
+const tab = ref<'people' | 'templates' | 'llm' | 'previews'>('people')
 const tabs = [
+  { id: 'people', label: 'People' },
   { id: 'templates', label: 'Templates' },
   { id: 'llm', label: 'Slidango AI' },
   { id: 'previews', label: 'Previews' },
@@ -96,7 +98,8 @@ onMounted(() => {
         <button class="ghost icon close" aria-label="Close" title="Close (Esc)" @click="dialog?.close()">✕</button>
       </header>
       <div class="body">
-        <template v-if="tab === 'templates'">
+        <PeoplePanel v-if="tab === 'people'" />
+        <template v-else-if="tab === 'templates'">
           <section>
             <h2>Template versions</h2>
             <table v-if="themes.length">

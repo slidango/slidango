@@ -13,7 +13,45 @@ export const users = pgTable('users', {
   isAdmin: boolean('is_admin').notNull().default(false),
   /** Apply LLM proposals without review (still undoable). */
   autoApply: boolean('auto_apply').notNull().default(false),
+  /** AUTH_MODE=local only: scrypt hash (see passwords.ts); null until an invite is accepted. */
+  passwordHash: text('password_hash'),
+  /** Disabled users cannot sign in; their sessions and tokens stop working at once. */
+  status: text('status', { enum: ['active', 'disabled'] }).notNull().default('active'),
+  /** Part of every session cookie; bumping it signs the user out everywhere. */
+  sessionVersion: integer('session_version').notNull().default(0),
+  lastSeenAt: timestamp('last_seen_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+/** One-time links for AUTH_MODE=local: accept an invitation or reset a password. */
+export const invites = pgTable('invites', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  email: text('email').notNull(),
+  /** SHA-256 of the token; the token itself is only shown once. */
+  tokenHash: text('token_hash').notNull().unique(),
+  purpose: text('purpose', { enum: ['invite', 'reset'] }).notNull(),
+  grantAdmin: boolean('grant_admin').notNull().default(false),
+  createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  usedAt: timestamp('used_at', { withTimezone: true }),
+})
+
+/** Personal access tokens for the API and the MCP endpoint. Never admin, never more than their owner. */
+export const apiTokens = pgTable('api_tokens', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  /** First characters of the token, to recognise it in lists. */
+  prefix: text('prefix').notNull(),
+  tokenHash: text('token_hash').notNull().unique(),
+  scope: text('scope', { enum: ['read', 'write'] }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+  expiresAt: timestamp('expires_at', { withTimezone: true }),
+  revokedAt: timestamp('revoked_at', { withTimezone: true }),
 })
 
 export const decks = pgTable('decks', {
@@ -24,6 +62,8 @@ export const decks = pgTable('decks', {
     .notNull()
     .references(() => users.id),
   themeVersion: text('theme_version'),
+  /** Who sees the deck besides its members: everyone may edit, everyone may view, or members only. */
+  access: text('access', { enum: ['team-edit', 'team-view', 'members'] }).notNull().default('team-edit'),
   archived: boolean('archived').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -115,6 +155,10 @@ export const proposals = pgTable('proposals', {
   previous: jsonb('previous').$type<UndoInfo>(),
   status: text('status', { enum: ['open', 'applied', 'rejected', 'stale', 'undone'] }).notNull().default('open'),
   createdBy: uuid('created_by').references(() => users.id),
+  /** Slidango AI in the app, or an external client over MCP. */
+  source: text('source', { enum: ['assistant', 'mcp'] }).notNull().default('assistant'),
+  /** MCP only: the name of the token that made the proposal, e.g. "Claude Code". */
+  client: text('client'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   /** Slide count when proposed; the client shows diffs against this numbering. */
   slideCount: integer('slide_count').notNull(),

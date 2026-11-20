@@ -5,6 +5,20 @@ handle /oauth2/* {
 	}
 }
 
+# API tokens (MCP clients, scripts) cannot do the SSO login. Requests carrying a
+# Slidango token skip forward_auth; the app authenticates them by the token alone.
+# Identity headers are still dropped, so a token request can never claim a person.
+@token {
+	path /mcp /mcp/* /api/*
+	header Authorization "Bearer sld_*"
+}
+handle @token {
+	request_header -X-Auth-Request-User
+	request_header -X-Auth-Request-Email
+	request_header -X-Auth-Request-Preferred-Username
+	reverse_proxy app:3000
+}
+
 handle {
 	# `route` keeps this order. The app trusts X-Auth-Request-*, and
 	# forward_auth only overwrites headers the auth response actually sets,

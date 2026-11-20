@@ -1,10 +1,10 @@
 import { ref } from 'vue'
-import type { User } from '@slidango/shared'
+import type { AuthMode, User } from '@slidango/shared'
 import { ApiError, api } from './api'
 
 export const currentUser = ref<User | null>(null)
-/** `password`: the app shows its own login form; `oidc`: oauth2-proxy handles login. */
-export const authMode = ref<'oidc' | 'password'>('oidc')
+/** `local`: the app shows its own login form; `oidc`: oauth2-proxy handles login. */
+export const authMode = ref<AuthMode>('oidc')
 export const needsLogin = ref(false)
 
 export const userReady = (async () => {
@@ -12,14 +12,15 @@ export const userReady = (async () => {
   try {
     currentUser.value = await api.me()
   } catch (e) {
-    if (e instanceof ApiError && e.status === 401 && authMode.value === 'password') needsLogin.value = true
+    if (e instanceof ApiError && e.status === 401 && authMode.value === 'local') needsLogin.value = true
     else throw e
   }
 })()
 
 export async function logout() {
-  await api.logout()
-  window.location.href = '/'
+  if (authMode.value === 'local') await api.logout()
+  // With SSO, oauth2-proxy ends the session.
+  window.location.href = authMode.value === 'local' ? '/' : '/oauth2/sign_out'
 }
 
 /**

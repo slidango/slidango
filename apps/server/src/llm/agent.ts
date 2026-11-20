@@ -53,6 +53,8 @@ export function toProposal(row: ProposalRow): Proposal {
     status: row.status,
     slideCount: row.slideCount,
     createdAt: row.createdAt.toISOString(),
+    source: row.source,
+    client: row.client,
   }
 }
 
@@ -426,7 +428,7 @@ export class Agent {
     try {
       args = JSON.parse(call.arguments || '{}') as Record<string, unknown>
     } catch {
-      return 'Fehler: Argumente sind kein gültiges JSON.'
+      return 'Error: the arguments are not valid JSON.'
     }
     const int = (v: unknown) => (typeof v === 'number' && Number.isInteger(v) ? v : NaN)
     let op: SlideOp
@@ -444,31 +446,65 @@ export class Agent {
         op = { type: 'move', from: int(args.from), to: int(args.to) }
         break
       default:
-        return `Fehler: unbekanntes Werkzeug ${call.name}.`
+        return `Error: unknown tool ${call.name}.`
     }
-    const invalid = referencedIndexes([op]).filter((i) => !(i >= 1 && i <= slideCount))
-    if (op.type === 'move' && !(op.to >= 2 && op.to <= slideCount)) invalid.push(op.to)
-    if (invalid.length) return `Fehler: Folie ${invalid.join(', ')} gibt es nicht (1–${slideCount}).`
-
-    const contents = op.type === 'replace' ? [op.content] : op.type === 'insert' ? op.contents : []
-    if (op.type === 'insert' && contents.length === 0) return 'Fehler: contents ist leer.'
-    for (const [i, content] of contents.entries()) {
-      const errors = validateSlide(content, layouts)
-      if (errors.length) return `Fehler in ${op.type === 'insert' ? `Folie ${i + 1} von contents` : 'content'}: ${errors.join(' ')}`
-    }
-    try {
-      applyOps(markdown, [...ops, op], {})
-    } catch (err) {
-      if (err instanceof InvalidOpError) return `Fehler: ${err.message}`
-      throw err
-    }
+    const error = checkOp(op, markdown, slideCount, layouts, ops)
+    if (error) return error
     ops.push(op)
-    return 'OK, vorgemerkt.'
+    return 'OK, noted.'
+  }
+
+  /** Current deck for external clients (MCP): slides with hashes, allowed layouts and the template guide. */
+  async snapshot(deckId: string) {
+    const ctx = await this.deckContext(deckId)
+    return { deck: ctx.deck, markdown: ctx.markdown, slides: ctx.slides, layouts: ctx.layouts, guide: ctx.guide }
+  }
+
+  /**
+   * A proposal from an external client (MCP), checked exactly like Slidango AI's tool calls.
+   * `baseHashes` lets the client pin the slide versions it read; otherwise the current ones are used.
+   * Applied right away only if the person opted into "Apply directly".
+   */
+  async proposeExternal(
+    deckId: string,
+    user: User,
+    input: { ops: SlideOp[]; summary: string; client: string; baseHashes?: Record<number, string> },
+  ): Promise<{ proposal: Proposal } | { error: string }> {
+    const ctx = await this.deckContext(deckId)
+    if (!input.ops.length) return { error: 'Error: no operations.' }
+    const accepted: SlideOp[] = []
+    for (const [i, op] of input.ops.entries()) {
+      const error = checkOp(op, ctx.markdown, ctx.slides.length, ctx.layouts, accepted)
+      if (error) return { error: `Operation ${i + 1}: ${error}` }
+      accepted.push(op)
+    }
+    const hashes = Object.fromEntries(
+      referencedIndexes(accepted).map((i) => [i, input.baseHashes?.[i] ?? ctx.slides[i - 1]!.hash]),
+    )
+    const [row] = await this.deps.db
+      .insert(schema.proposals)
+      .values({
+        deckId,
+        summary: input.summary.trim().slice(0, 1000),
+        ops: accepted,
+        baseHashes: hashes,
+        createdBy: user.id,
+        slideCount: ctx.slides.length,
+        source: 'mcp',
+        client: input.client,
+      })
+      .returning()
+    return { proposal: user.autoApply ? await this.apply(row!.id, user) : toProposal(row!) }
   }
 
   private async loadProposal(id: string) {
     const [row] = await this.deps.db.select().from(schema.proposals).where(eq(schema.proposals.id, id))
     return row ?? null
+  }
+
+  async isOwnProposal(id: string, userId: string): Promise<boolean> {
+    const row = await this.loadProposal(id)
+    return row?.createdBy === userId
   }
 
   async getProposal(id: string): Promise<Proposal | null> {
@@ -668,4 +704,28 @@ export function mergeIntoFirstSlide(current: string, content: string): string {
   const head = setHeadmatter(headmatterOnly(current) || '---\n---\n', keys).trimEnd()
   const rest = parseDeck(current).slice(1).map((s) => s.segment)
   return [`${head}\n\n${body}\n`, ...rest].join('\n')
+}
+
+/**
+ * Validates one slide operation against the deck and the operations before it.
+ * Returns an error text for the model (or MCP client) to correct, or null.
+ */
+export function checkOp(op: SlideOp, markdown: string, slideCount: number, layouts: string[], before: SlideOp[]): string | null {
+  const invalid = referencedIndexes([op]).filter((i) => !(Number.isInteger(i) && i >= 1 && i <= slideCount))
+  if (op.type === 'move' && !(op.to >= 2 && op.to <= slideCount)) invalid.push(op.to)
+  if (invalid.length) return `Error: slide ${invalid.join(', ')} does not exist (1–${slideCount}).`
+
+  const contents = op.type === 'replace' ? [op.content] : op.type === 'insert' ? op.contents : []
+  if (op.type === 'insert' && contents.length === 0) return 'Error: contents is empty.'
+  for (const [i, content] of contents.entries()) {
+    const errors = validateSlide(content, layouts)
+    if (errors.length) return `Error in ${op.type === 'insert' ? `slide ${i + 1} of contents` : 'content'}: ${errors.join(' ')}`
+  }
+  try {
+    applyOps(markdown, [...before, op], {})
+  } catch (err) {
+    if (err instanceof InvalidOpError) return `Error: ${err.message}`
+    throw err
+  }
+  return null
 }

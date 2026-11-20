@@ -95,11 +95,6 @@ export function registerLlmRoutes(
     return { configured: Boolean(settings.baseUrl && settings.model) }
   })
 
-  app.patch('/api/me', async (req) => {
-    const patch = z.object({ autoApply: z.boolean() }).parse(req.body)
-    return deps.users.update(req.user!, patch)
-  })
-
   app.get<{ Params: { id: string } }>('/api/decks/:id/briefing', async (req) => {
     await loadDeck(req, 'view')
     return (await agent.briefing(req.params.id)) ?? { fields: briefingFieldsSchema.parse({}), files: [] }
@@ -218,8 +213,9 @@ export function registerLlmRoutes(
     async (req: FastifyRequest<{ Params: { id: string } }>) => {
       const proposal = await agent.getProposal(req.params.id)
       if (!proposal) throw app.httpErrors.notFound()
-      const deck = await decks.get(proposal.deckId)
-      if (!deck || !can(req.user, deck, 'edit')) throw app.httpErrors.forbidden()
+      const deck = await decks.forUser(proposal.deckId, req.user!.id)
+      if (!deck || !can(req.auth, deck, 'view')) throw app.httpErrors.notFound()
+      if (!can(req.auth, deck, 'edit')) throw app.httpErrors.forbidden()
       if (deck.archived) throw app.httpErrors.conflict('Deck is archived')
       try {
         if (action === 'apply') return await agent.apply(proposal.id, req.user!)

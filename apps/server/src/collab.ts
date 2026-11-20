@@ -74,12 +74,12 @@ export function createCollab(deps: { db: Db; decks: Decks; users: Users; config:
     quiet: true,
 
     async onAuthenticate({ documentName, requestHeaders, connectionConfig }) {
-      const user = await users.fromHeaders(requestHeaders)
+      const caller = await users.resolve(requestHeaders)
       const deckId = deckIdFromDocumentName(documentName)
-      const deck = deckId ? await decks.get(deckId) : null
-      if (!user || !deck || !can(user, deck, 'view')) throw new Error('forbidden')
-      connectionConfig.readOnly = deck.archived || !can(user, deck, 'edit')
-      return { user }
+      const deck = caller && deckId ? await decks.forUser(deckId, caller.user.id) : null
+      if (!caller || !deck || !can(caller, deck, 'view')) throw new Error('forbidden')
+      connectionConfig.readOnly = deck.archived || !can(caller, deck, 'edit')
+      return { user: caller.user }
     },
 
     async onLoadDocument({ documentName, document }) {
@@ -129,6 +129,30 @@ export function createCollab(deps: { db: Db; decks: Decks; users: Users; config:
       document.getText(SLIDES_TEXT).insert(0, content)
       await storeState(deckId, document)
       document.destroy()
+    },
+
+    /**
+     * Closes live connections (of one deck and/or one user). Clients reconnect at once and are
+     * authenticated again, so changed deck rights or a disabled account take effect immediately.
+     */
+    disconnect(filter: { deckId?: string; userId?: string }) {
+      for (const document of hocuspocus.documents.values()) {
+        if (filter.deckId && document.name !== collabDocumentName(filter.deckId)) continue
+        for (const connection of document.connections.keys()) {
+          if (filter.userId && connection.context?.user?.id !== filter.userId) continue
+          connection.close()
+        }
+      }
+    },
+
+    /**
+     * Shows (or with null hides) a server-side presence entry, e.g. an MCP client working on the deck.
+     * Only visible while the document is open, which is exactly when someone could see it.
+     */
+    setPresence(deckId: string, state: Record<string, unknown> | null) {
+      const document = hocuspocus.documents.get(collabDocumentName(deckId))
+      if (!document || document.isLoading) return
+      document.awareness.setLocalState(state)
     },
 
     /** Number of live client connections for a deck (used by the runner's idle shutdown). */

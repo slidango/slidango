@@ -114,6 +114,13 @@ function onProposalChanged(proposal: Proposal) {
 
 watch(proposals, (value) => emit('proposals', [...value.values()]), { deep: true })
 
+/** Suggestions from MCP clients (Claude Code etc.) have no chat message; show open and recent ones on top. */
+const external = computed(() =>
+  [...proposals.value.values()]
+    .filter((p) => p.source === 'mcp' && (p.status === 'open' || Date.now() - new Date(p.createdAt).getTime() < 15 * 60_000))
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
+)
+
 // The chat is per person; polling keeps several tabs of the same person in step.
 const timer = setInterval(() => void load(), 5000)
 onMounted(async () => {
@@ -165,7 +172,12 @@ defineExpose({ focus: () => textarea.value?.focus() })
     </header>
     <p v-if="!configured" class="hint">No LLM configured. An admin can set one up under Settings → Slidango AI on the overview page.</p>
     <div ref="list" class="messages">
-      <p v-if="messages.length === 0 && streaming === null" class="muted empty">
+      <div v-for="proposal in external" :key="proposal.id" class="message assistant external">
+        <div class="author">{{ proposal.client ?? 'MCP client' }} · via your API token</div>
+        <div v-if="proposal.summary" class="text">{{ proposal.summary }}</div>
+        <ProposalCard :proposal="proposal" :slides="slides" :read-only="readOnly" @changed="onProposalChanged" />
+      </div>
+      <p v-if="messages.length === 0 && streaming === null && external.length === 0" class="muted empty">
         Ask for changes, e.g. “Shorten slide {{ cursorSlide }} to three bullets”. Suggestions show up here and in the editor.
         Only you can see this history.<template v-if="sessions.length"> Earlier conversations are under the clock icon.</template>
       </p>

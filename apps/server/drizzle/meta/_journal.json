@@ -29,6 +29,13 @@
       "when": 1793875375382,
       "tag": "0003_llm_sessions",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1795112257600,
+      "tag": "0004_accounts_access_tokens",
+      "breakpoints": true
     }
   ]
 }

@@ -8,25 +8,20 @@ import fastifyWebsocket from '@fastify/websocket'
 import Fastify, { type FastifyRequest } from 'fastify'
 import { z } from 'zod'
 import {
+  type CreateDeck,
   type Deck,
   type Preview,
   type User,
   createDeckSchema,
+  setAccessSchema,
   setHeadmatter,
+  setMemberSchema,
   slugify,
   themeVersionSchema,
   updateDeckSchema,
 } from '@slidango/shared'
-import {
-  type Action,
-  LoginLimiter,
-  SESSION_COOKIE,
-  Users,
-  can,
-  checkPassword,
-  createSession,
-  sessionCookie,
-} from './auth'
+import { type Action, type AuthContext, Users, can } from './auth'
+import { registerAccountRoutes } from './accounts'
 import { createCollab } from './collab'
 import type { Config } from './config'
 import type { Db } from './db'
@@ -34,9 +29,12 @@ import { Decks, initialSlides, toDeck } from './decks'
 import { PreviewHosts, createPreviewProxy } from './preview'
 import { Agent } from './llm/agent'
 import { registerLlmRoutes } from './llm/routes'
+import { registerMcpRoutes } from './mcp'
 import { LlmConfig } from './llm/settings'
 import { Runner } from './runner'
 import { MAX_THEME_BYTES, ThemeError, Themes } from './themes'
+import { Invites } from './invites'
+import { TokenRateLimiter, Tokens } from './tokens'
 import { Versions } from './versions'
 
 const IMAGE_TYPES: Record<string, string> = {
@@ -51,8 +49,13 @@ const MAX_IMAGE_BYTES = 10 * 1024 * 1024
 declare module 'fastify' {
   interface FastifyRequest {
     user: User | null
+    /** How the caller authenticated (session, proxy, dev user or API token). */
+    auth: AuthContext | null
   }
 }
+
+/** Paths an API token may never use: minting tokens, signing in, administration. */
+const TOKEN_FORBIDDEN = /^\/api\/(auth|me\/tokens|me\/password|admin)(\/|$|\?)/
 
 function toFetchHeaders(raw: IncomingHttpHeaders): Headers {
   const headers = new Headers()
@@ -66,6 +69,10 @@ function toFetchHeaders(raw: IncomingHttpHeaders): Headers {
 export async function buildApp(config: Config, db: Db) {
   const app = Fastify({ logger: { level: process.env.LOG_LEVEL ?? 'info' }, bodyLimit: 1024 * 1024 })
   const users = new Users(db, config)
+  const tokens = new Tokens(db)
+  users.tokenResolver = (token) => tokens.resolve(token)
+  const invites = new Invites(db, config.publicUrl)
+  const tokenLimiter = new TokenRateLimiter()
   const decks = new Decks(db, config.dataDir)
   const collab = createCollab({ db, decks, users, config, log: app.log })
   const versions = new Versions((id) => decks.dir(id))
@@ -109,10 +116,10 @@ export async function buildApp(config: Config, db: Db) {
   ): Promise<null | { error: 401 | 404 | 500 } | { deck: { id: string; themeVersion: string | null }; origin: string | null }> {
     const slug = previewHosts.slugFromHost(host)
     if (!slug) return null
-    const user = await users.fromHeaders(headers)
-    const deck = await decks.bySlug(slug)
-    if (!user) return { error: 401 }
-    if (!deck || !can(user, deck, 'view')) return { error: 404 }
+    const caller = await users.resolve(headers)
+    if (!caller) return { error: 401 }
+    const deck = await decks.bySlugForUser(slug, caller.user.id)
+    if (!deck || !can(caller, deck, 'view')) return { error: 404 }
     return { deck, origin: runner.target(deck.id) }
   }
 
@@ -132,10 +139,11 @@ export async function buildApp(config: Config, db: Db) {
   }
 
   app.decorateRequest('user', null)
+  app.decorateRequest('auth', null)
   app.addHook('onRequest', async (req, reply) => {
     const target = await previewTarget(req.headers.host, req.headers)
     if (target) {
-      if ('error' in target && target.error === 401 && config.auth.mode === 'password' && req.method === 'GET') {
+      if ('error' in target && target.error === 401 && config.auth.mode === 'local' && req.method === 'GET') {
         const here = `${new URL(publicOrigin).protocol}//${req.headers.host}${req.url}`
         return reply.redirect(`${publicOrigin}/login?next=${encodeURIComponent(here)}`)
       }
@@ -148,16 +156,32 @@ export async function buildApp(config: Config, db: Db) {
       previewProxy.web(req.raw, reply.raw, target.origin)
       return
     }
-    if (!req.url.startsWith('/api') && !req.url.startsWith('/collab')) return
+    const isMcp = req.url === '/mcp' || req.url.startsWith('/mcp?')
+    if (!req.url.startsWith('/api') && !req.url.startsWith('/collab') && !isMcp) return
     if (req.url.startsWith('/api/auth/')) return
-    req.user = await users.fromHeaders(req.headers)
-    if (!req.user) return reply.code(401).send({ error: 'unauthenticated' })
+    req.auth = await users.resolve(req.headers)
+    req.user = req.auth?.user ?? null
+    if (!req.auth) return reply.code(401).send({ error: 'unauthenticated' })
+    const token = req.auth.token
+    if (token) {
+      if (TOKEN_FORBIDDEN.test(req.url) || req.url.startsWith('/collab')) {
+        return reply.code(403).send({ error: 'Not available with an API token.' })
+      }
+      if (!tokenLimiter.allow(token.id)) return reply.code(429).send({ error: 'Too many requests for this token. Slow down.' })
+      // MCP checks the scope per tool; on the REST API a read token may only read.
+      if (token.scope === 'read' && !isMcp && req.method !== 'GET') {
+        return reply.code(403).send({ error: 'This token is read-only.' })
+      }
+    } else if (isMcp) {
+      return reply.code(401).send({ error: 'The MCP endpoint needs an API token (Authorization: Bearer sld_…).' })
+    }
   })
 
+  /** Loads a deck for the caller. Decks the caller may not even see answer 404, not 403. */
   async function loadDeck(req: FastifyRequest<{ Params: { id: string } }>, action: Action) {
-    const deck = await decks.get(req.params.id)
-    if (!deck) throw app.httpErrors.notFound()
-    if (!can(req.user, deck, action)) throw app.httpErrors.forbidden()
+    const deck = req.auth ? await decks.forUser(req.params.id, req.auth.user.id) : null
+    if (!deck || !can(req.auth, deck, 'view')) throw app.httpErrors.notFound()
+    if (!can(req.auth, deck, action)) throw app.httpErrors.forbidden()
     return deck
   }
 
@@ -179,58 +203,16 @@ export async function buildApp(config: Config, db: Db) {
 
   app.get('/healthz', async () => ({ ok: true }))
 
-  app.get('/api/me', async (req) => req.user)
-
-  // --- Login (only in AUTH_MODE=password; with OIDC, oauth2-proxy handles it) ---
-
-  app.get('/api/auth/config', async () => ({ mode: config.auth.mode }))
-
-  const loginLimiter = new LoginLimiter()
-  const loginSchema = z.object({
-    name: z.string().trim().min(1).max(100),
-    email: z.string().trim().toLowerCase().email().max(200),
-    password: z.string().max(1000),
-    next: z.string().max(2000).optional(),
-  })
-
-  app.post('/api/auth/login', async (req, reply) => {
-    const auth = config.auth
-    if (auth.mode !== 'password') throw app.httpErrors.notFound()
-    const input = loginSchema.parse(req.body)
-    // Behind Caddy/nginx every request comes from the proxy. The proxy appends the address it saw,
-    // so only the right-most entry is trustworthy; anything left of it is client-supplied.
-    const forwarded = req.headers['x-forwarded-for']
-    const client = (Array.isArray(forwarded) ? forwarded.join(',') : forwarded)?.split(',').at(-1)?.trim() || req.ip
-    if (loginLimiter.blocked(client)) {
-      return reply.code(429).send({ error: 'Too many failed attempts. Try again in 15 minutes.' })
-    }
-    const role = checkPassword(input.password, auth)
-    if (!role) {
-      loginLimiter.fail(client)
-      await new Promise((r) => setTimeout(r, 500))
-      return reply.code(401).send({ error: 'Wrong password.' })
-    }
-    loginLimiter.reset(client)
-    const token = createSession({ email: input.email, name: input.name, isAdmin: role === 'admin' }, auth)
-    reply.header('set-cookie', sessionCookie(token, auth))
-    const user = await users.fromHeaders({ cookie: `${SESSION_COOKIE}=${token}` })
-    return { user, next: safeNext(input.next) }
-  })
-
-  app.post('/api/auth/logout', async (_req, reply) => {
-    if (config.auth.mode !== 'password') throw app.httpErrors.notFound()
-    reply.header('set-cookie', sessionCookie(null, config.auth))
-    return { ok: true }
-  })
+  registerAccountRoutes(app, { config, users, invites, tokens, collab, safeNext })
 
   const withPreview = (deck: Deck) => ({ ...deck, previewUrl: previewHosts.url(deck.slug) })
 
   app.get<{ Querystring: { archived?: string } }>('/api/decks', async (req) =>
-    (await decks.list(req.query.archived === 'true')).map(withPreview),
+    (await decks.list(req.auth!, req.query.archived === 'true')).map(withPreview),
   )
 
-  app.post('/api/decks', async (req, reply) => {
-    const input = createDeckSchema.parse(req.body)
+  /** Creates a deck owned by `user`: template content, Yjs state and a first version. */
+  async function createDeck(input: CreateDeck, user: User): Promise<Deck> {
     const theme = await themes.defaultTheme()
     let content: string | undefined
     if (theme) {
@@ -240,18 +222,64 @@ export async function buildApp(config: Config, db: Db) {
     }
     // "Mit Assistent" starts empty (headmatter only); the briefing replaces the preview until the draft.
     if (input.mode === 'assistant') content = headmatterOf(content ?? initialSlides(input.title))
-    const deck = await decks.create(input, req.user!.id, { themeVersion: theme?.version ?? null, content })
+    const deck = await decks.create(input, user.id, { themeVersion: theme?.version ?? null, content })
     await collab.initDocument(deck.id, await decks.readSlides(deck.id))
-    await versions.commit(deck.id, 'Deck created', req.user)
-    return reply.code(201).send(deck)
+    await versions.commit(deck.id, 'Deck created', user)
+    return deck
+  }
+
+  app.post('/api/decks', async (req, reply) => {
+    return reply.code(201).send(await createDeck(createDeckSchema.parse(req.body), req.user!))
   })
 
-  app.get<{ Params: { id: string } }>('/api/decks/:id', async (req) => withPreview(toDeck(await loadDeck(req, 'view'))))
+  app.get<{ Params: { id: string } }>('/api/decks/:id', async (req) =>
+    withPreview(toDeck(await loadDeck(req, 'view'), req.auth!)),
+  )
 
   app.patch<{ Params: { id: string } }>('/api/decks/:id', async (req) => {
-    await loadDeck(req, 'edit')
+    await loadDeck(req, 'manage')
     return decks.update(req.params.id, updateDeckSchema.parse(req.body))
   })
+
+  // --- Sharing ---
+
+  app.get<{ Params: { id: string } }>('/api/decks/:id/sharing', async (req) => {
+    await loadDeck(req, 'view')
+    return decks.sharing(req.params.id)
+  })
+
+  app.put<{ Params: { id: string } }>('/api/decks/:id/access', async (req) => {
+    await loadDeck(req, 'manage')
+    const { access } = setAccessSchema.parse(req.body)
+    await decks.setAccess(req.params.id, access)
+    // Open editors reconnect and are checked against the new setting.
+    collab.disconnect({ deckId: req.params.id })
+    return decks.sharing(req.params.id)
+  })
+
+  app.put<{ Params: { id: string; userId: string } }>('/api/decks/:id/members/:userId', async (req) => {
+    const deck = await loadDeck(req, 'manage')
+    const { role } = setMemberSchema.parse(req.body)
+    const member = await users.row(req.params.userId)
+    if (!member || member.status !== 'active') throw app.httpErrors.notFound('User not found')
+    if (deck.ownerId === member.id && role !== 'owner') {
+      throw app.httpErrors.conflict('Make someone else the owner first.')
+    }
+    await decks.setMember(deck.id, member.id, role)
+    collab.disconnect({ deckId: deck.id })
+    return decks.sharing(deck.id)
+  })
+
+  app.delete<{ Params: { id: string; userId: string } }>('/api/decks/:id/members/:userId', async (req) => {
+    const deck = await loadDeck(req, 'manage')
+    if (deck.ownerId === req.params.userId) throw app.httpErrors.conflict('The owner cannot be removed. Transfer ownership first.')
+    await decks.removeMember(deck.id, req.params.userId)
+    collab.disconnect({ deckId: deck.id })
+    return decks.sharing(deck.id)
+  })
+
+  /** Active users, to pick from when sharing. */
+  app.get('/api/users', async () => users.directory())
 
   app.delete<{ Params: { id: string } }>('/api/decks/:id', async (req) => {
     await loadDeck(req, 'manage')
@@ -310,7 +338,7 @@ export async function buildApp(config: Config, db: Db) {
     const { version } = z.object({ version: themeVersionSchema }).parse(req.body)
     const theme = await themes.get(version)
     if (!theme || theme.status !== 'ready') throw app.httpErrors.notFound('Template version not available')
-    if (deck.themeVersion === version) return toDeck(deck)
+    if (deck.themeVersion === version) return toDeck(deck, req.auth!)
     await collab.flushDeck(deck.id)
     const current = await decks.readSlides(deck.id)
     await collab.replaceContent(deck.id, setHeadmatter(current, { theme: theme.name }), 'theme')
@@ -370,6 +398,7 @@ export async function buildApp(config: Config, db: Db) {
   })
 
   registerLlmRoutes(app, { db, agent, llm, decks, collab, versions, users, loadDeck })
+  registerMcpRoutes(app, { agent, decks, collab, versions, previewHosts, createDeck })
 
   app.get('/collab', { websocket: true }, (socket, req) => {
     const request = new Request(`http://${req.headers.host ?? 'localhost'}${req.url}`, {
@@ -411,7 +440,19 @@ export async function buildApp(config: Config, db: Db) {
     previewProxy.close()
   })
 
-  return { app, collab, decks, users, runner, versions, themes, agent, llm, previewProxy }
+  /** local mode: makes sure every ADMIN_EMAILS address can get in; logs a setup link for those without a password. */
+  async function bootstrapAdmins() {
+    for (const warning of config.warnings) app.log.warn(warning)
+    if (config.auth.mode !== 'local') return
+    for (const email of config.adminEmails) {
+      const row = await users.byEmail(email)
+      if (row?.passwordHash) continue
+      const link = await invites.create({ email, purpose: 'invite', grantAdmin: true, createdBy: null })
+      app.log.warn({ email, url: link.url, expiresAt: link.expiresAt }, 'admin setup link (open it to set a password)')
+    }
+  }
+
+  return { app, collab, decks, users, runner, versions, themes, agent, llm, previewProxy, invites, tokens, bootstrapAdmins }
 }
 
 function headmatterOf(markdown: string): string {

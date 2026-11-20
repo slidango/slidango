@@ -113,7 +113,7 @@ In `oidc` mode, Caddy lets requests with `Authorization: Bearer sld_…` to `/mc
 | --- | --- | --- |
 | `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY` | | Any OpenAI-compatible endpoint. Admins can change it in **Settings → Slidango AI**; the key is never sent to the browser. Deck content and briefings go to this endpoint. |
 | `LLM_VISION` | `false` | Send briefing images to the model |
-| `RUNNER_MAX_INSTANCES` | `15` | Slidev processes at most. Measure RAM per process before a pilot ([`pilot.md`](pilot.md)). |
+| `RUNNER_MAX_INSTANCES` | `15` | Slidev processes at most. Measure RAM per process before you size the host. |
 | `RUNNER_IDLE_MINUTES` | `10` | Stop a preview without editors or open presentations |
 
 **Templates** are Slidev themes uploaded as `.zip` or `.tgz` in **Settings → Templates**. Slidango ships its own in [`theme/`](../theme): build it with `pnpm theme:pack` and upload `theme/dist/slidev-theme-slidango-1.0.0.tgz` as version `1.0.0`. Templates are installed without install scripts, smoke-tested with their starter deck, then set as default. Existing decks switch in **⋯ → Template**, which shows the changelog. Format: [`template.md`](template.md).

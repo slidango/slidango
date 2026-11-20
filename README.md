@@ -1,7 +1,11 @@
 <div align="center">
 
-<img src="docs/assets/banner-light.png#gh-light-mode-only" alt="slidango: Slides, made together. Your team writes one Markdown file, live. AI writes along in it." width="100%">
-<img src="docs/assets/banner-dark.png#gh-dark-mode-only" alt="slidango: Slides, made together. Your team writes one Markdown file, live. AI writes along in it." width="100%">
+<img src="docs/assets/logo-light.png#gh-light-mode-only" alt="slidango" width="220">
+<img src="docs/assets/logo-dark.png#gh-dark-mode-only" alt="slidango" width="220">
+
+# Slides, made *together.*
+
+**Your team writes one Markdown file, live. AI writes along in it.**
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-c93a22?style=flat-square)](LICENSE)
 [![Built on Slidev](https://img.shields.io/badge/built_on-Slidev-16181d?style=flat-square)](https://sli.dev)

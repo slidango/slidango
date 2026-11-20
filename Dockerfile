@@ -1,4 +1,4 @@
-FROM node:22-bookworm-slim AS pnpm
+FROM node:22-bookworm-slim@sha256:e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee AS pnpm
 # Pinned so corepack does not have to look up a version online.
 RUN corepack enable && corepack prepare pnpm@10.34.9 --activate
 
@@ -25,7 +25,7 @@ RUN pnpm --filter @slidango/web build \
  && cp -r apps/web/dist /out/web \
  && chmod -R a+rX /out
 
-FROM node:22-bookworm-slim
+FROM node:22-bookworm-slim@sha256:e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee
 ENV NODE_ENV=production PORT=3000 DATA_DIR=/data WEB_DIST=/app/web \
     SLIDEV_RUNTIME=/app/runtime COREPACK_HOME=/opt/corepack
 WORKDIR /app

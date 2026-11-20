@@ -111,7 +111,7 @@ Getestet: Backup eines Hosts mit Decks, Versionen, ungespeicherten Änderungen u
 
 ### CI/CD
 
-`.gitlab-ci.yml`: Lint, Typecheck, Unit-/Integrationstests gegen Postgres 16 und E2E im Playwright-Image (mit installiertem Slidev-Runtime), Eval-Suite manuell (wenn `LLM_*` gesetzt), Image-Build auf dem Default-Branch, Deploy manuell per SSH (`DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_PATH`, `SSH_PRIVATE_KEY`).
+`.github/workflows/ci.yml`: Lint und Typecheck, Unit-/Integrationstests gegen Postgres 16 (echte Slidev-Prozesse), E2E im Playwright-Image. Bei jedem Push auf `main` baut die Pipeline nach erfolgreichen Tests das Image und schiebt es nach `ghcr.io/slidango/slidango` (Tags: kurzer Commit-SHA und `latest`). Die Job-Zusammenfassung enthält die fertige Zeile `APP_IMAGE=ghcr.io/slidango/slidango:<sha>@sha256:…` für die `.env` des Servers. Actions und Basis-Images sind per SHA bzw. Digest gepinnt. Solange der Repo privat ist, ist auch das Image privat; der Server braucht dann `docker login ghcr.io` mit einem Token, das nur `read:packages` darf. Die Eval-Suite (echte Modell-Calls) läuft nicht in der CI, sondern bei Bedarf lokal.
 
 ## Sicherheit
 

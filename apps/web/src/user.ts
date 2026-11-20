@@ -28,7 +28,7 @@ export async function logout() {
  * (cursor-ochre, cursor-mint, cursor-blue; text on them is always on-cursor).
  * Teal (cursor-ai) is reserved for Slidango AI and never handed to a person.
  */
-const PRESENCE = ['#e3b061', '#7fd1ae', '#8fb3e6']
+export const PRESENCE = ['#e3b061', '#7fd1ae', '#8fb3e6']
 export function colorFor(id: string): string {
   let hash = 0
   for (const ch of id) hash = (hash * 31 + ch.charCodeAt(0)) | 0

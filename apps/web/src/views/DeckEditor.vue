@@ -28,7 +28,7 @@ import VersionsPanel from '../components/VersionsPanel.vue'
 import { useEditorLayout } from '../composables/layout'
 import { theme, toggleTheme } from '../composables/theme'
 import { reportError } from '../errors'
-import { colorFor, currentUser } from '../user'
+import { PRESENCE, colorFor, currentUser } from '../user'
 
 const props = defineProps<{ id: string }>()
 
@@ -179,10 +179,27 @@ function connect() {
   provider.value = p
 }
 
+/**
+ * Three presence colours collide quickly when picked by hash. If someone else in the deck already
+ * shows our colour and a free one exists, switch to it. Only the later client (higher id) moves,
+ * so two people never swap back and forth.
+ */
+function avoidColorClash(awareness: NonNullable<HocuspocusProvider['awareness']>) {
+  const own = awareness.getLocalState()?.user as { color?: string } | undefined
+  if (!own?.color) return
+  const others = [...awareness.getStates()].filter(([id, state]) => id !== awareness.clientID && state.user?.color)
+  const clash = others.some(([id, state]) => state.user.color === own.color && id < awareness.clientID)
+  if (!clash) return
+  const used = new Set(others.map(([, state]) => state.user.color as string))
+  const free = PRESENCE.find((c) => !used.has(c))
+  if (free) awareness.setLocalStateField('user', { ...own, color: free })
+}
+
 /** Peers with the line of their cursor (y-codemirror keeps it as a relative Yjs position). */
 function updatePeers() {
   const awareness = provider.value?.awareness
   if (!awareness) return
+  avoidColorClash(awareness)
   const markdown = text.toString()
   peers.value = [...awareness.getStates()]
     .filter(([, state]) => state.user)

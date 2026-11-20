@@ -167,3 +167,14 @@ describe('undoOps', () => {
     expect(undoOps(applied.text + '\n---\n\n# Extra\n', applied.undo).ok).toBe(false)
   })
 })
+
+describe('plainTitle', () => {
+  it('drops inline Markdown from headings', async () => {
+    const { plainTitle } = await import('./deck')
+    expect(plainTitle('Where we *are*')).toBe('Where we are')
+    expect(plainTitle('**Bold** and `code` and [a link](https://x.y)')).toBe('Bold and code and a link')
+    expect(plainTitle('A_snake_case name')).toBe('A_snake_case name')
+    expect(plainTitle('3 * 4 = 12')).toBe('3 * 4 = 12')
+    expect(plainTitle('   ')).toBeUndefined()
+  })
+})

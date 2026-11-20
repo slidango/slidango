@@ -85,7 +85,7 @@ export function parseDeck(markdown: string): DeckSlide[] {
       segment: segmentLines.join(eol),
       content,
       hash: hashSlide(content),
-      title: slide.title ?? /^#{1,6}\s+(.+)$/m.exec(slide.content)?.[1]?.trim(),
+      title: plainTitle(slide.title ?? /^#{1,6}\s+(.+)$/m.exec(slide.content)?.[1]),
       layout: typeof frontmatter.layout === 'string' ? frontmatter.layout : undefined,
       hidden: Boolean(frontmatter.hide || frontmatter.disabled),
     }
@@ -211,4 +211,17 @@ export function undoOps(markdown: string, undo: UndoInfo): { ok: true; text: str
     if (!r.affected && r.orig !== null && current[i]!.hash !== r.hash) restored[r.orig - 1] = current[i]!.segment
   })
   return { ok: true, text: joinSegments(restored) }
+}
+
+/** A heading as plain text: `Where we *are*` → `Where we are` (emphasis, code and link markup removed). */
+export function plainTitle(title: string | undefined): string | undefined {
+  if (!title) return undefined
+  const plain = title
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/(\*\*|\*|~~|`)(\S(?:.*?\S)?)\1/g, '$2')
+    // Underscores only count as emphasis at word boundaries (snake_case stays).
+    .replace(/(^|[^\w])(__|_)(\S(?:.*?\S)?)\2(?![\w])/g, '$1$3')
+    .replace(/<[^>]+>/g, '')
+    .trim()
+  return plain || undefined
 }

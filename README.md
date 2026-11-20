@@ -120,7 +120,7 @@ The change shows up in the editor as a suggestion, marked with the client's name
 | **One compose file** | Caddy, the app and Postgres, plus oauth2-proxy for SSO. HTTPS included. |
 | **Plain files** | Decks are `slides.md` files with their own Git history, on your disk. |
 | **Your model** | Any OpenAI-compatible endpoint, or none at all. |
-| **Your template** | Upload a Slidev theme once; every deck follows it. |
+| **Your template** | Upload a Slidev theme once; every deck follows it. The Slidango template is included. |
 | **Backups** | One script for the database and the deck files, one to restore. |
 
 Images for every green build are published to `ghcr.io/slidango/slidango`. Start with the **[self-hosting guide](docs/self-hosting.md)**.

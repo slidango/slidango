@@ -1,15 +1,9 @@
 <div align="center">
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-dark.svg">
-  <img src="docs/assets/logo-light.svg" alt="slidango" width="240">
-</picture>
+<img src="docs/assets/banner-light.png#gh-light-mode-only" alt="slidango: Slides, made together. Your team writes one Markdown file, live. AI writes along in it." width="100%">
+<img src="docs/assets/banner-dark.png#gh-dark-mode-only" alt="slidango: Slides, made together. Your team writes one Markdown file, live. AI writes along in it." width="100%">
 
-# Slides, made *together.*
-
-**Markdown decks your team writes live, in one file. With AI as one more voice in the room.**
-
-[![License: MIT](https://img.shields.io/badge/license-MIT-c93a22?style=flat-square)](#license)
+[![License: MIT](https://img.shields.io/badge/license-MIT-c93a22?style=flat-square)](LICENSE)
 [![Built on Slidev](https://img.shields.io/badge/built_on-Slidev-16181d?style=flat-square)](https://sli.dev)
 [![MCP ready](https://img.shields.io/badge/MCP-ready-237570?style=flat-square)](#bring-your-own-agent)
 [![Self-hosted](https://img.shields.io/badge/self--hosted-docker_compose-5b606b?style=flat-square)](docs/self-hosting.md)
@@ -18,10 +12,8 @@
 
 <br>
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/editor-dark.png">
-  <img src="docs/assets/editor-light.png" alt="The Slidango editor: Markdown on the left with Anna's and Jonas's cursors, the rendered slide on the right, and a suggestion from Claude Code waiting for review." width="100%">
-</picture>
+<img src="docs/assets/editor-light.png#gh-light-mode-only" alt="The Slidango editor: Markdown on the left with Melanie's and Harry's cursors, the rendered slide on the right, and an AI suggestion waiting for review." width="100%">
+<img src="docs/assets/editor-dark.png#gh-dark-mode-only" alt="The Slidango editor: Markdown on the left with Melanie's and Harry's cursors, the rendered slide on the right, and an AI suggestion waiting for review." width="100%">
 
 </div>
 
@@ -59,11 +51,11 @@ layout: default
 
 # Where we are
 
-- Migration finished in October       ← Anna
-- Three of five teams onboarded       ← Jonas
-- Support tickets down by a third     ← Gabriel
+- Migration finished in October       ← gabriel
+- Three of five teams onboarded       ← melanie
+- Support tickets down by a third     ← harry
 
-<!-- Lead with the migration win. -->    ← Slidango AI
+<!-- Lead with the migration win. -->    ← AI
 ```
 
 <table>
@@ -141,4 +133,4 @@ Slidango is a private open-source project. Questions, ideas and bug reports are 
 
 ## License
 
-MIT. Built on [Slidev](https://sli.dev), not affiliated with the Slidev project.
+[MIT](LICENSE). Built on [Slidev](https://sli.dev), not affiliated with the Slidev project.

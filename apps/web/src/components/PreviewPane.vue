@@ -117,14 +117,34 @@ defineExpose({ restart: start, step })
 <template>
   <div class="preview" data-testid="preview">
     <div class="stage">
-      <iframe
-        v-if="preview?.status === 'ready' && src"
-        ref="frame"
-        :src="src"
-        title="Live preview"
-        allow="fullscreen; screen-wake-lock; clipboard-write"
-        @load="onLoad"
-      />
+      <template v-if="preview?.status === 'ready' && src">
+        <div class="fit">
+          <div class="sheet">
+            <iframe
+              ref="frame"
+              :src="src"
+              title="Live preview"
+              allow="fullscreen; screen-wake-lock; clipboard-write"
+              @load="onLoad"
+            />
+          </div>
+        </div>
+        <div class="pages">
+          <span class="bars" role="group" aria-label="Slides">
+            <button
+              v-for="n in total"
+              :key="n"
+              class="bar"
+              :class="{ on: n === current }"
+              :title="`Slide ${n}`"
+              :aria-label="`Slide ${n}`"
+              :aria-current="n === current ? 'page' : undefined"
+              @click="goTo(n)"
+            />
+          </span>
+          <span class="position" data-testid="preview-position">{{ current }} / {{ total }}</span>
+        </div>
+      </template>
       <div v-else-if="preview?.status === 'error'" class="message error">
         <p>The preview crashed.</p>
         <button @click="start">Restart</button>
@@ -139,7 +159,6 @@ defineExpose({ restart: start, step })
 
     <div class="controls" role="toolbar" aria-label="Preview">
       <button class="ghost icon" title="Previous slide (Ctrl+Alt+←)" aria-label="Previous slide" :disabled="!nav.hasPrev" @click="step('prev')">‹</button>
-      <span class="position" data-testid="preview-position">{{ current }} / {{ total }}</span>
       <button class="ghost icon" title="Next slide (Ctrl+Alt+→)" aria-label="Next slide" :disabled="!nav.hasNext" @click="step('next')">›</button>
       <label class="follow" title="The preview jumps to the slide under your cursor">
         <input v-model="follow" type="checkbox" /> Follow cursor
@@ -160,14 +179,42 @@ defineExpose({ restart: start, step })
 
 <style scoped>
 .preview { height: 100%; display: flex; flex-direction: column; background: var(--surface); min-height: 0; }
-.stage { flex: 1; min-height: 0; display: flex; background: var(--surface-100); }
-iframe { flex: 1; border: 0; width: 100%; height: 100%; background: var(--surface-100); }
+/* Like the landing page: the slide as a card on the dot grid, page bars below. */
+.stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px 24px 10px;
+  background-color: var(--surface-100);
+  background-image: radial-gradient(circle, var(--line) 1.2px, transparent 1.3px);
+  background-size: 24px 24px;
+}
+.fit { flex: 1; min-height: 0; display: grid; place-items: center; container-type: size; }
+/* Exactly 16:9 and as large as fits: no letterbox inside the iframe. */
+.sheet {
+  width: min(100cqw, 100cqh * 16 / 9);
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  /* A hairline keeps the edge visible when a dark slide sits on the dark grid. */
+  box-shadow: 0 0 0 1px var(--line), var(--shadow-pop);
+  background: var(--surface-card);
+}
+iframe { display: block; border: 0; width: 100%; height: 100%; }
+.pages { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 16px; }
+.bars { display: flex; gap: 6px; min-width: 0; flex: 1; }
+.bar { flex: 0 1 18px; min-width: 3px; height: 4px; padding: 0; border: none; border-radius: 2px; background: var(--line); cursor: pointer; transition: background 0.3s var(--ease); }
+.bar:hover:not(:disabled) { background: var(--line-strong); border: none; }
+.bar.on, .bar.on:hover:not(:disabled) { background: var(--tango); }
+.bar:focus-visible { outline-offset: 3px; }
 .message { padding: 1rem; overflow: auto; width: 100%; margin: 0; }
 .starting { display: grid; place-items: center; color: var(--muted); }
 .error p { color: var(--danger); margin-top: 0; }
 pre { font-size: 12px; white-space: pre-wrap; background: var(--code-bg); color: var(--code-ink); border: 1px solid var(--border); padding: 0.5rem; border-radius: var(--radius-sm); }
 .controls { display: flex; align-items: center; gap: 0.25rem; padding: 0.25rem 0.5rem; border-top: 1px solid var(--border); background: var(--surface); flex-wrap: wrap; }
-.position { font: 400 12px/1.3 var(--font-mono); min-width: 3.5rem; text-align: center; color: var(--muted); }
+.position { font: 400 12px/1.3 var(--font-mono); color: var(--ink-subtle); white-space: nowrap; }
 .follow { display: flex; align-items: center; gap: 0.3rem; font-size: 0.8rem; color: var(--muted); margin-left: 0.5rem; }
 .spacer { flex: 1; }
 .controls button { font-size: 0.85rem; }

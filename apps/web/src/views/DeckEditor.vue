@@ -356,12 +356,15 @@ onBeforeUnmount(() => {
 })
 
 const CONTROLS_HEIGHT = 37
+/** The dot-grid stage around the slide: 24px side padding, 18px top, page bars and gaps below. */
+const STAGE_PAD_X = 48
+const STAGE_CHROME_Y = 54
 /** Preview height: the user's choice, else exactly a 16:9 slide plus its control bar. */
 const ASSISTANT_MIN = 220
 /** Preview height: the user's choice, else a 16:9 slide plus its control bar, leaving room for an open assistant. */
 const previewHeight = computed(() => {
   if (layout.previewHeight !== null) return layout.previewHeight
-  const natural = Math.round((rightWidth.value * 9) / 16) + CONTROLS_HEIGHT
+  const natural = Math.round(((rightWidth.value - STAGE_PAD_X) * 9) / 16) + STAGE_CHROME_Y + CONTROLS_HEIGHT
   if (!layout.assistantOpen || !rightHeight.value) return natural
   return Math.max(140, Math.min(natural, rightHeight.value - ASSISTANT_MIN))
 })

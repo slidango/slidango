@@ -10,6 +10,8 @@ export default defineConfig({
     proxy: {
       '/api': api,
       '/collab': { target: api, ws: true },
+      // MCP clients (Claude Code etc.) can use the dev URL from the token dialog too.
+      '/mcp': api,
     },
   },
 })

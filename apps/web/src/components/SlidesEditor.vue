@@ -191,7 +191,8 @@ defineExpose({
 .slides-editor :deep(.cm-activeLine) { background: color-mix(in srgb, var(--ink) 3%, transparent); }
 .slides-editor :deep(.cm-cursor) { border-left: 2px solid var(--ink); }
 .slides-editor :deep(.cm-selectionBackground), .slides-editor :deep(.cm-focused .cm-selectionBackground) { background: color-mix(in srgb, var(--tango) 22%, transparent) !important; }
-.slides-editor :deep(.cm-scroller) { font-family: var(--font-mono); font-size: 14px; line-height: 22px; }
+.slides-editor :deep(.cm-scroller) { font-family: var(--font-mono); font-size: 14px; line-height: 22px; font-variant-ligatures: none; }
+/* No ligatures: Markdown like `<!--` or `->` must look exactly as typed. */
 /* Remote cursors: 2px caret in the person's colour, pill label with the name in mono 11px. */
 .slides-editor :deep(.cm-ySelectionCaret) { border-left-width: 2px; border-right: none; margin-left: -1px; margin-right: -1px; }
 .slides-editor :deep(.cm-ySelectionCaretDot) { display: none; }

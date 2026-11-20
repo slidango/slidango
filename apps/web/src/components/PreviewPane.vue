@@ -2,6 +2,7 @@
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { Preview } from '@slidango/shared'
 import { api } from '../api'
+import { theme } from '../composables/theme'
 import MenuButton from './MenuButton.vue'
 
 const props = defineProps<{ deckId: string; slide: number; total: number }>()
@@ -48,6 +49,19 @@ function post(message: Record<string, unknown>) {
   frame.value?.contentWindow?.postMessage({ target: 'slidev', ...message }, '*')
 }
 
+/**
+ * The preview follows the app theme: Slidev switches decks without a fixed `colorSchema`
+ * (the Slidango template defaults to auto); decks that pin light or dark keep their variant.
+ */
+function applyTheme() {
+  post({ type: 'color-schema', color: theme.value })
+  post({ type: 'css-vars', vars: { '--slidev-slide-container-background': stage() } })
+}
+watch(theme, () => {
+  // The CSS variables of the new theme apply on the next frame.
+  if (styled) requestAnimationFrame(applyTheme)
+})
+
 /** Jumps without reloading (Slidev's embedded control). */
 function goTo(no: number) {
   if (no === current.value) return
@@ -67,7 +81,7 @@ function onMessage(event: MessageEvent) {
   // The first nav report means Slidev's embedded control listens; style once per page load.
   if (!styled) {
     styled = true
-    post({ type: 'css-vars', vars: { '--slidev-slide-container-background': stage() } })
+    applyTheme()
   }
   current.value = state.no
   nav.value = { hasNext: state.hasNext, hasPrev: state.hasPrev }

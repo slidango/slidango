@@ -8,7 +8,7 @@
   "engines": { "slidev": ">=53.0.0" },
   "dependencies": { "@slidev/cli": "53.0.0" },
   "slidev": {
-    "colorSchema": "light",
+    "colorSchema": "auto",
     "defaults": {
       "aspectRatio": "16/9",
       "transition": "fade",

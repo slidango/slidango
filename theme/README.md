@@ -1,6 +1,6 @@
 # slidev-theme-slidango
 
-The Slidango look for [Slidev](https://sli.dev): warm paper, bold Geist headlines with one Instrument Serif punchline in tango, mono labels, a dot grid on cover, section and end slides. Fonts are bundled (OFL). Light by default; `colorSchema: dark` in a deck's settings switches that deck to the dark variant.
+The Slidango look for [Slidev](https://sli.dev): warm paper, bold Geist headlines with one Instrument Serif punchline in tango, mono labels, a dot grid on cover, section and end slides. Fonts are bundled (OFL). Light and dark: a deck follows the viewer's theme by default; `colorSchema: light` or `colorSchema: dark` in its settings fixes it to one variant.
 
 Layouts: `cover`, `default`, `section`, `two-cols`, `center`, `statement`, `fact`, `quote`, `end`. Writing rules and examples: [`guide.md`](guide.md). Every layout in one deck: [`starter.md`](starter.md).
 

@@ -10,7 +10,7 @@ Warm paper, bold Geist headlines with one italic punchline, a single tango accen
 - **Speaker notes:** put them in an HTML comment at the end of the slide: `<!-- … -->`.
 - **Code:** fenced code blocks render dark on the paper slide. Keep them short.
 - No emojis, no exclamation marks, no superlatives.
-- **Dark slides:** add `colorSchema: dark` to the deck settings (slide 1). The whole deck turns dark, in the preview, when presenting and in exports. Default is light.
+- **Light and dark:** by default a deck follows the viewer: in Slidango's preview it matches the app theme, when presenting the presenter's setting. To fix a deck to one variant for everyone (preview, presenting, exports), set `colorSchema: light` or `colorSchema: dark` in the deck settings (slide 1).
 
 ```md
 ---

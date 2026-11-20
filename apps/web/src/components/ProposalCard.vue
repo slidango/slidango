@@ -78,10 +78,10 @@ header { display: flex; gap: 0.5rem; align-items: baseline; }
 .link { margin-left: auto; border: none; background: none !important; padding: 0; color: var(--accent); font-size: 0.8rem; }
 .ops { list-style: none; margin: 0.4rem 0; padding: 0; display: grid; gap: 0.4rem; }
 .label { font-weight: 500; }
-.diff { margin: 0.25rem 0 0; font-size: 11.5px; line-height: 1.5; max-height: 16rem; overflow: auto; background: var(--code-bg); color: var(--code-ink); border-radius: var(--radius-sm); padding: 0.3rem; white-space: pre-wrap; }
-.diff .add { background: color-mix(in srgb, #62b6b3 18%, transparent); color: #a6e3df; display: block; }
-.diff .del { background: color-mix(in srgb, #ff8a7a 16%, transparent); color: #ffb3a8; text-decoration: line-through; display: block; }
-.diff .same { color: var(--code-muted); display: block; }
+.diff { margin: 0.25rem 0 0; font-size: 11.5px; line-height: 1.5; max-height: 16rem; overflow: auto; background: var(--surface-100); color: var(--ink); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 0.3rem; white-space: pre-wrap; }
+.diff .add { background: var(--ai-soft); color: var(--ai); display: block; }
+.diff .del { background: var(--danger-soft); color: var(--danger); text-decoration: line-through; display: block; }
+.diff .same { color: var(--ink-muted); display: block; }
 .actions { display: flex; gap: 0.4rem; }
 .error { color: var(--danger); margin: 0.3rem 0; }
 </style>

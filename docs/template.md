@@ -21,7 +21,7 @@ fonts/, public/  Fonts, logos, images
   "keywords": ["slidev-theme", "slidev"],
   "dependencies": { "@slidev/cli": "53.0.0" },
   "slidev": {
-    "colorSchema": "light",
+    "colorSchema": "auto",
     "defaults": { "aspectRatio": "16/9" }
   }
 }
@@ -49,7 +49,7 @@ Sales, Austria
 
 ## Light and dark
 
-`"colorSchema": "light"` in `package.json` makes light the default. If your theme also has a dark variant (styles under `html.dark`), a deck switches to it with `colorSchema: dark` in its headmatter. The preview, presenting and exports then show the dark variant, regardless of whether the person editing uses Slidango's light or dark theme. The Slidango template works this way.
+If your theme has a dark variant (styles under `html.dark`), set `"colorSchema": "auto"` in `package.json`: Slidango's preview then follows the app theme of the person editing, and presenting follows the presenter's setting. A deck fixes one variant for everyone with `colorSchema: light` or `colorSchema: dark` in its headmatter. Themes without a dark variant should set `"colorSchema": "light"`. The Slidango template uses `auto`.
 
 ## What happens after the upload
 

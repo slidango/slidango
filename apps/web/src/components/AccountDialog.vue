@@ -49,7 +49,7 @@ async function logoutEverywhere() {
 
 // --- Tokens ---
 const tokens = ref<ApiToken[]>([])
-const tokenName = ref('Claude Code')
+const tokenName = ref('')
 const tokenScope = ref<TokenScope>('write')
 const tokenExpiry = ref<'30' | '90' | '365' | 'never'>('90')
 const created = ref<CreatedToken | null>(null)
@@ -198,7 +198,7 @@ onMounted(() => {
                   <option value="never">never</option>
                 </select>
               </label>
-              <button class="primary" type="submit">Create token</button>
+              <button class="primary" type="submit">Create</button>
             </form>
             <p v-if="tokenError" class="error">{{ tokenError }}</p>
           </section>

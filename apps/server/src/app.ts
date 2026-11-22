@@ -10,6 +10,8 @@ import { z } from 'zod'
 import {
   type CreateDeck,
   type Deck,
+  type Theme,
+  parseDeck,
   type Preview,
   type User,
   createDeckSchema,
@@ -28,6 +30,7 @@ import type { Db } from './db'
 import { Decks, initialSlides, toDeck } from './decks'
 import { PreviewHosts, createPreviewProxy } from './preview'
 import { Agent } from './llm/agent'
+import { availableLayouts } from './llm/validate'
 import { registerLlmRoutes } from './llm/routes'
 import { registerMcpRoutes } from './mcp'
 import { LlmConfig } from './llm/settings'
@@ -347,19 +350,32 @@ export async function buildApp(config: Config, db: Db) {
 
   app.get('/api/themes', async () => (await themes.list()).filter((t) => t.status === 'ready'))
 
-  /** Switches a deck to another template or another version of its template. */
-  app.post<{ Params: { id: string } }>('/api/decks/:id/theme', async (req) => {
-    const deck = await loadDeck(req, 'manage')
-    const { themeId } = z.object({ themeId: z.string().max(300) }).parse(req.body)
-    const theme = await readyTheme(themeId)
-    if (deck.themeId === theme.id) return toDeck(deck, req.auth!)
+  /** Slides using a layout the template doesn't have (they would render with Slidev's fallback). */
+  async function missingLayouts(deckId: string, theme: { id: string; name: string }) {
+    const layouts = new Set(await availableLayouts(themes.runtimeModules(theme.id), theme.name))
+    return parseDeck(await collab.readContent(deckId))
+      .filter((slide) => slide.layout && !layouts.has(slide.layout))
+      .map((slide) => ({ slide: slide.index, layout: slide.layout! }))
+  }
+
+  /** Switches a deck's template (headmatter, runtime, a version entry). Used by the API and MCP. */
+  async function switchTemplate(deck: { id: string; themeId: string | null }, theme: Theme, user: User) {
+    if (deck.themeId === theme.id) return null
     await collab.flushDeck(deck.id)
     const current = await decks.readSlides(deck.id)
     await collab.replaceContent(deck.id, setHeadmatter(current, { theme: theme.name }), 'theme')
     const updated = await decks.update(deck.id, { themeId: theme.id })
     await runner.restart(deck.id, theme.id)
-    await versions.commit(deck.id, `Template: ${theme.label} ${theme.version}`, req.user, { allowEmpty: true })
+    await versions.commit(deck.id, `Template: ${theme.label} ${theme.version}`, user, { allowEmpty: true })
     return updated
+  }
+
+  /** Switches a deck to another template or another version of its template. */
+  app.post<{ Params: { id: string } }>('/api/decks/:id/theme', async (req) => {
+    const deck = await loadDeck(req, 'manage')
+    const { themeId } = z.object({ themeId: z.string().max(300) }).parse(req.body)
+    const theme = await readyTheme(themeId)
+    return (await switchTemplate(deck, theme, req.user!)) ?? toDeck(deck, req.auth!)
   })
 
   const requireAdmin = (req: FastifyRequest) => {
@@ -413,7 +429,7 @@ export async function buildApp(config: Config, db: Db) {
   })
 
   registerLlmRoutes(app, { db, agent, llm, decks, collab, versions, users, loadDeck })
-  registerMcpRoutes(app, { agent, decks, collab, versions, previewHosts, createDeck, themes })
+  registerMcpRoutes(app, { agent, decks, collab, versions, previewHosts, createDeck, themes, switchTemplate, missingLayouts })
 
   app.get('/collab', { websocket: true }, (socket, req) => {
     const request = new Request(`http://${req.headers.host ?? 'localhost'}${req.url}`, {

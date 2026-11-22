@@ -2,7 +2,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
-import type { CreateDeck, Deck, SlideOp, User } from '@slidango/shared'
+import type { CreateDeck, Deck, SlideOp, Theme, User } from '@slidango/shared'
 import { type AuthContext, can } from './auth'
 import type { Collab } from './collab'
 import type { DeckWithRole, Decks } from './decks'
@@ -20,6 +20,8 @@ interface Deps {
   previewHosts: PreviewHosts
   createDeck: (input: CreateDeck, user: User) => Promise<Deck>
   themes: Themes
+  switchTemplate: (deck: { id: string; themeId: string | null }, theme: Theme, user: User) => Promise<Deck | null>
+  missingLayouts: (deckId: string, theme: { id: string; name: string }) => Promise<{ slide: number; layout: string }[]>
 }
 
 /** How long an MCP client stays visible in a deck after its last call. */
@@ -276,6 +278,40 @@ export function registerMcpRoutes(app: FastifyInstance, deps: Deps) {
         } catch (err) {
           return fail((err as Error).message)
         }
+      },
+    )
+
+    server.registerTool(
+      'set_deck_template',
+      {
+        title: 'Switch a deck’s template',
+        description:
+          'Switches a deck to another template or template version (see list_templates). This is not a suggestion: the look changes for everyone at once and is saved as a version. Needs permission to manage the deck. Slides whose layout the new template lacks are reported first; pass force: true to switch anyway.',
+        inputSchema: {
+          deck_id: z.string(),
+          template_id: z.string().max(300),
+          force: z.boolean().optional().describe('Switch even if some slides use layouts the template does not have'),
+        },
+        annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
+      },
+      async ({ deck_id, template_id, force }) => {
+        const deck = await deckFor(deck_id, 'edit')
+        if (typeof deck === 'string') return fail(deck)
+        if (!can(ctx, deck, 'manage')) return fail(`Only the owner of “${deck.title}” or an admin can switch its template.`)
+        const theme = await deps.themes.get(template_id)
+        if (!theme || theme.status !== 'ready') return fail(`Template ${template_id} is not available. See list_templates.`)
+        if (deck.themeId === theme.id) return text({ template: theme.id, changed: false, message: 'The deck already uses this template.' })
+        const missing = await deps.missingLayouts(deck.id, theme)
+        if (missing.length && !force) {
+          return fail(
+            `${theme.label} ${theme.version} has no layout for: ` +
+              missing.map((m) => `slide ${m.slide} (${m.layout})`).join(', ') +
+              '. Change those slides first (get_template_guide lists its layouts), or pass force: true.',
+          )
+        }
+        showPresence(deck.id, ctx)
+        await deps.switchTemplate(deck, theme, ctx.user)
+        return text({ template: theme.id, changed: true, missingLayouts: missing })
       },
     )
 

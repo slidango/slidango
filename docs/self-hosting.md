@@ -101,7 +101,9 @@ Other clients:
 | `propose_changes` | Replace, insert, delete or move slides, as a suggestion |
 | `apply_proposal` · `undo_proposal` | Only your own, only with *Apply directly* |
 | `save_version` | Commit the current state with a message |
-| `create_deck` | A new deck you own |
+| `create_deck` | A new deck you own, optionally with a template |
+| `list_templates` | Templates and versions decks can use, the default one marked |
+| `set_deck_template` | Switch a deck's template or version: owners and admins only, not a suggestion (saved as a version); slides with layouts the template lacks are reported first |
 
 Suggestions appear in the editor and in the Slidango AI panel, marked with the client's name. They land without review only if the person turned on *Apply directly*. While a client works, it shows up in the deck as its own presence (`Claude Code · Gabriel`).
 

@@ -236,6 +236,26 @@ describe('API tokens and MCP', () => {
     const created = await call(client, 'create_deck', { title: 'From Claude' })
     expect(created.data).toMatchObject({ title: 'From Claude' })
 
+    // set_deck_template: managers only, and slides with unknown layouts are reported first.
+    const templates = (await call(client, 'list_templates', {})).data as unknown as { id: string; builtin: boolean }[]
+    const slidango = templates.find((t) => t.builtin)!.id
+    const plain = (
+      await app.inject({ method: 'POST', url: '/api/decks', headers: owner, payload: { title: 'Plain', themeId: null } })
+    ).json() as Deck
+    await built.collab.replaceContent(plain.id, (text) => `${text}\n---\nlayout: weird\n---\n\n# Odd slide\n`)
+    const blocked = await call(client, 'set_deck_template', { deck_id: plain.id, template_id: slidango })
+    expect(blocked.error).toBe(true)
+    expect(blocked.text).toMatch(/slide 2 \(weird\).*force: true/)
+    const forced = await call(client, 'set_deck_template', { deck_id: plain.id, template_id: slidango, force: true })
+    expect(forced.data).toMatchObject({ template: slidango, changed: true, missingLayouts: [{ slide: 2, layout: 'weird' }] })
+    expect((await app.inject({ url: `/api/decks/${plain.id}`, headers: owner })).json()).toMatchObject({ themeId: slidango })
+    expect((await built.versions.list(plain.id))[0]!.message).toMatch(/^Template: Slidango/)
+    // Others can edit this team-edit deck, but not switch its template.
+    const otherWriter = await connect(await mint(other, 'write'))
+    expect((await call(otherWriter, 'set_deck_template', { deck_id: plain.id, template_id: slidango })).text).toMatch(/Only the owner/)
+    expect((await call(reader, 'set_deck_template', { deck_id: plain.id, template_id: slidango })).text).toMatch(/not found|read-only/)
+    await otherWriter.close()
+
     await client.close()
     await reader.close()
     await app.close()

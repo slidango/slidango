@@ -29,12 +29,12 @@ RUN pnpm --filter @slidango/web build \
 
 FROM node:22-bookworm-slim@sha256:e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee
 ENV NODE_ENV=production PORT=3000 DATA_DIR=/data WEB_DIST=/app/web \
-    SLIDEV_RUNTIME=/app/runtime COREPACK_HOME=/opt/corepack CHROMIUM_PATH=/usr/bin/chromium
+    SLIDEV_RUNTIME=/app/runtime COREPACK_HOME=/opt/corepack CHROMIUM_PATH=/usr/bin/chromium-headless-shell
 WORKDIR /app
-# git: deck versions. pnpm: template installs. chromium: slide-1 images for the deck overview
+# git: deck versions. pnpm: template installs. chromium-headless-shell: slide-1 images for the deck overview
 # (templates bundle their fonts; dejavu is the fallback). PDF/PPTX export runs in the user's browser.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends git ca-certificates chromium fonts-dejavu-core \
+ && apt-get install -y --no-install-recommends git ca-certificates chromium-headless-shell fonts-dejavu-core \
  && rm -rf /var/lib/apt/lists/* \
  && corepack enable && corepack prepare pnpm@10.34.9 --activate && chmod -R a+rX /opt/corepack
 COPY --from=runtime /runtime /app/runtime

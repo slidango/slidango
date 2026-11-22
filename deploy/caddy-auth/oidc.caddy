@@ -19,6 +19,40 @@ handle @token {
 	reverse_proxy app:3000
 }
 
+# Signed out, the app domain still serves the start page with public decks: the app
+# shell, the public builds (/p/), their listing and thumbnails (/api/public/) and the
+# auth mode. Everything else under /api and /collab needs a session; without one it
+# answers 401 (not a redirect), so the app can send people to the login itself.
+@appApi {
+	host {$APP_DOMAIN}
+	path /api/* /collab /collab/*
+	not path /api/public/* /api/auth/config
+}
+handle @appApi {
+	route {
+		request_header -X-Auth-Request-User
+		request_header -X-Auth-Request-Email
+		request_header -X-Auth-Request-Preferred-Username
+
+		forward_auth oauth2-proxy:4180 {
+			uri /oauth2/auth
+			copy_headers X-Auth-Request-User X-Auth-Request-Email X-Auth-Request-Preferred-Username
+		}
+
+		reverse_proxy app:3000
+	}
+}
+
+@appOpen host {$APP_DOMAIN}
+handle @appOpen {
+	# No identity here, ever: the app treats these requests as signed out.
+	request_header -X-Auth-Request-User
+	request_header -X-Auth-Request-Email
+	request_header -X-Auth-Request-Preferred-Username
+	reverse_proxy app:3000
+}
+
+# Preview subdomains: SSO login first, then back to the preview.
 handle {
 	# `route` keeps this order. The app trusts X-Auth-Request-*, and
 	# forward_auth only overwrites headers the auth response actually sets,

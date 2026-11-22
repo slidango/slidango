@@ -43,6 +43,13 @@
       "when": 1795365422183,
       "tag": "0005_multiple_templates",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1795377832000,
+      "tag": "0006_public_decks",
+      "breakpoints": true
     }
   ]
 }

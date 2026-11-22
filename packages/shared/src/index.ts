@@ -32,6 +32,10 @@ export const deckSchema = z.object({
   themeId: z.string().nullable(),
   access: deckAccessSchema,
   archived: z.boolean(),
+  /** Published: anyone can watch the last saved version, without signing in. */
+  public: z.boolean(),
+  /** Path of the public link (/p/<slug>/) once the first build is done; set on list and detail responses. */
+  publicUrl: z.string().nullable().optional(),
   /** The requesting user's membership role, if any; set where a user is known. */
   role: deckRoleSchema.nullable().optional(),
   /** What the requesting user may do beyond viewing; set where a user is known. */
@@ -238,6 +242,30 @@ export interface DeckSharing {
 }
 
 export const setAccessSchema = z.object({ access: deckAccessSchema })
+export const setPublicSchema = z.object({ public: z.boolean() })
+
+/** State of a deck's public build. */
+export interface PublicState {
+  public: boolean
+  /** Instance allows public decks (PUBLIC_DECKS). */
+  allowed: boolean
+  status: 'off' | 'building' | 'ready' | 'error'
+  url: string | null
+  /** When the public version was built (ISO), null before the first build. */
+  builtAt: string | null
+  error: string | null
+}
+
+/** A public deck as listed for everyone, signed in or not. */
+export interface PublicDeck {
+  id: string
+  slug: string
+  title: string
+  owner: string
+  url: string
+  builtAt: string
+  thumbnailAt: number | null
+}
 export const setMemberSchema = z.object({ role: deckRoleSchema })
 
 /** Another signed-in user, as offered when sharing a deck. */

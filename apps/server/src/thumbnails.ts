@@ -22,7 +22,8 @@ export interface ThumbnailOptions {
 /** Slide 1 of each deck as a small image for the deck overview, light and dark. */
 export class Thumbnails {
   private timers = new Map<string, NodeJS.Timeout>()
-  private queue: string[] = []
+  /** Image keys (`<deckId>` or `<deckId>-public`) with the page to render. */
+  private queue: { key: string; url: () => Promise<string | null> }[] = []
   private running = false
   private browser: Promise<Browser> | null = null
   private closeTimer: NodeJS.Timeout | null = null
@@ -30,14 +31,15 @@ export class Thumbnails {
 
   constructor(private opts: ThumbnailOptions) {}
 
-  file(deckId: string, scheme: ColorScheme) {
-    return join(this.opts.dir, `${deckId}-${scheme}.jpg`)
+  /** `key`: the deck id (team image, from the live preview) or `<id>-public` (from the public build). */
+  file(key: string, scheme: ColorScheme) {
+    return join(this.opts.dir, `${key}-${scheme}.jpg`)
   }
 
   /** Time of the last capture (ms), for cache busting; null when there is none yet. */
-  async version(deckId: string): Promise<number | null> {
+  async version(key: string): Promise<number | null> {
     try {
-      return Math.round((await stat(this.file(deckId, 'light'))).mtimeMs)
+      return Math.round((await stat(this.file(key, 'light'))).mtimeMs)
     } catch {
       return null
     }
@@ -45,15 +47,27 @@ export class Thumbnails {
 
   /** Renders slide 1 soon. Called after a saved version, a template switch, or when the last editor leaves. */
   schedule(deckId: string) {
+    this.enqueue(deckId, async () => {
+      const origin = await this.opts.preview(deckId)
+      return origin ? `${origin}/1?embedded=true` : null
+    })
+  }
+
+  /** Renders slide 1 of a public deck from its static build (never from unsaved edits). */
+  schedulePublic(deckId: string, url: string) {
+    this.enqueue(`${deckId}-public`, async () => url)
+  }
+
+  private enqueue(key: string, url: () => Promise<string | null>) {
     if (!this.opts.enabled || this.unavailable) return
-    clearTimeout(this.timers.get(deckId))
+    clearTimeout(this.timers.get(key))
     const timer = setTimeout(() => {
-      this.timers.delete(deckId)
-      if (!this.queue.includes(deckId)) this.queue.push(deckId)
+      this.timers.delete(key)
+      if (!this.queue.some((item) => item.key === key)) this.queue.push({ key, url })
       void this.drain()
     }, this.opts.delayMs ?? 1500)
     timer.unref()
-    this.timers.set(deckId, timer)
+    this.timers.set(key, timer)
   }
 
   async close() {
@@ -68,10 +82,9 @@ export class Thumbnails {
     if (this.running) return
     this.running = true
     try {
-      for (let deckId = this.queue.shift(); deckId; deckId = this.queue.shift()) {
-        await this.capture(deckId).catch((err: Error) =>
-          this.opts.log.warn({ deckId, err: err.message }, 'thumbnail failed'),
-        )
+      for (let item = this.queue.shift(); item; item = this.queue.shift()) {
+        const { key } = item
+        await this.capture(item).catch((err: Error) => this.opts.log.warn({ key, err: err.message }, 'thumbnail failed'))
       }
     } finally {
       this.running = false
@@ -79,9 +92,9 @@ export class Thumbnails {
     }
   }
 
-  private async capture(deckId: string) {
-    const origin = await this.opts.preview(deckId)
-    if (!origin) return
+  private async capture({ key, url: resolveUrl }: { key: string; url: () => Promise<string | null> }) {
+    const url = await resolveUrl()
+    if (!url) return
     const browser = await this.launch()
     if (!browser) return
     await mkdir(this.opts.dir, { recursive: true })
@@ -91,11 +104,11 @@ export class Thumbnails {
       const context = await browser.newContext({ viewport: { width: 960, height: 540 }, colorScheme })
       try {
         const page = await context.newPage()
-        await page.goto(`${origin}/1?embedded=true`, { waitUntil: 'load', timeout: 45_000 })
+        await page.goto(url, { waitUntil: 'load', timeout: 45_000 })
         await page.waitForSelector('.slidev-layout', { timeout: 30_000 })
         await page.evaluate(() => document.fonts.ready.then(() => undefined))
         await page.waitForTimeout(600) // slide transition, late images
-        const target = this.file(deckId, colorScheme)
+        const target = this.file(key, colorScheme)
         const tmp = `${target}.tmp`
         await page.screenshot({ path: tmp, type: 'jpeg', quality: 82 })
         rendered.push([tmp, target])
@@ -107,7 +120,7 @@ export class Thumbnails {
     // last: once a client sees a version, both schemes exist. Otherwise a dark-mode overview can
     // ask for the dark image before it is written, get a 404 and drop the <img>.
     for (const [tmp, target] of rendered.reverse()) await rename(tmp, target)
-    this.opts.log.info({ deckId }, 'thumbnail updated')
+    this.opts.log.info({ key }, 'thumbnail updated')
   }
 
   private async launch(): Promise<Browser | null> {
@@ -150,9 +163,9 @@ export class Thumbnails {
     if (browser) await (await browser.catch(() => null))?.close().catch(() => {})
   }
 
-  async remove(deckId: string) {
+  async remove(key: string) {
     for (const scheme of SCHEMES) {
-      const file = this.file(deckId, scheme)
+      const file = this.file(key, scheme)
       if (existsSync(file)) await rm(file, { force: true })
     }
   }

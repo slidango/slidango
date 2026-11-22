@@ -20,6 +20,7 @@ export function toDeck(row: DeckRow | DeckWithRole, caller?: User | AuthContext)
     themeId: row.themeId,
     access: row.access,
     archived: row.archived,
+    public: row.public,
     ...(role !== undefined ? { role } : {}),
     ...(caller && role !== undefined ? { can: permissions(caller, row as DeckWithRole) } : {}),
     createdAt: row.createdAt.toISOString(),
@@ -106,6 +107,19 @@ export class Decks {
       .orderBy(schema.users.name)
     const order = { owner: 0, editor: 1, viewer: 2 }
     return { access: deck.access, members: members.sort((a, b) => order[a.role] - order[b.role]) }
+  }
+
+  async setPublic(id: string, value: boolean) {
+    await this.db.update(schema.decks).set({ public: value }).where(eq(schema.decks.id, id))
+  }
+
+  /** Published, not archived decks with their owner's name, newest first. */
+  async listPublic() {
+    return this.db
+      .select({ id: schema.decks.id, slug: schema.decks.slug, title: schema.decks.title, owner: schema.users.name })
+      .from(schema.decks)
+      .innerJoin(schema.users, eq(schema.users.id, schema.decks.ownerId))
+      .where(and(eq(schema.decks.public, true), eq(schema.decks.archived, false)))
   }
 
   async setAccess(id: string, access: DeckAccess) {

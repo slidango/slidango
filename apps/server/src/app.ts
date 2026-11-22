@@ -16,6 +16,8 @@ import {
   type User,
   createDeckSchema,
   setAccessSchema,
+  setPublicSchema,
+  type PublicDeck,
   setHeadmatter,
   setMemberSchema,
   slugify,
@@ -26,6 +28,8 @@ import { type Action, type AuthContext, Users, can } from './auth'
 import { registerAccountRoutes } from './accounts'
 import { createCollab } from './collab'
 import { Thumbnails } from './thumbnails'
+import { Publisher } from './publisher'
+import { servePublicFile } from './public-site'
 import type { Config } from './config'
 import type { Db } from './db'
 import { Decks, initialSlides, toDeck } from './decks'
@@ -92,7 +96,14 @@ export async function buildApp(config: Config, db: Db) {
   })
 
   const collab = createCollab({ db, decks, users, config, log: app.log, onUnload: (id) => thumbnails.schedule(id) })
-  const versions = new Versions((id) => decks.dir(id), (id) => thumbnails.schedule(id))
+  const versions = new Versions(
+    (id) => decks.dir(id),
+    (id) => {
+      thumbnails.schedule(id)
+      // Public decks show the last saved version; the build skips decks that aren't public.
+      publisher.schedule(id)
+    },
+  )
   const themes = new Themes(db, {
     dataDir: config.dataDir,
     builtinRuntimeDir: dirname(config.builtinRuntime),
@@ -109,6 +120,21 @@ export async function buildApp(config: Config, db: Db) {
     runtimeModules: (version) => (version ? themes.runtimeModules(version) : config.builtinRuntime),
     // Editors and open preview tabs (e.g. someone presenting) both keep a preview alive.
     connectionCount: (id) => collab.connectionCount(id) + previewProxy.openSockets(id),
+    log: app.log,
+  })
+
+  // The app renders the public thumbnail from its own /p/ route.
+  const selfOrigin = `http://${['0.0.0.0', '::', ''].includes(config.host) ? '127.0.0.1' : config.host}:${config.port}`
+  const publisher = new Publisher({
+    enabled: config.publicDecks,
+    dataDir: config.dataDir,
+    deckDir: (id) => decks.dir(id),
+    runtimeModules: (version) => (version ? themes.runtimeModules(version) : config.builtinRuntime),
+    async lookup(id) {
+      const deck = await decks.get(id)
+      return deck && deck.public && !deck.archived ? { slug: deck.slug, themeId: deck.themeId } : null
+    },
+    onBuilt: (id, slug) => thumbnails.schedulePublic(id, `${selfOrigin}/p/${slug}/1`),
     log: app.log,
   })
 
@@ -177,13 +203,17 @@ export async function buildApp(config: Config, db: Db) {
     }
     const isMcp = req.url === '/mcp' || req.url.startsWith('/mcp?')
     if (!req.url.startsWith('/api') && !req.url.startsWith('/collab') && !isMcp) return
-    if (req.url.startsWith('/api/auth/')) return
+    if (req.url.startsWith('/api/auth/') || req.url.startsWith('/api/public/')) return
     req.auth = await users.resolve(req.headers)
     req.user = req.auth?.user ?? null
     if (!req.auth) return reply.code(401).send({ error: 'unauthenticated' })
     const token = req.auth.token
     if (token) {
       if (TOKEN_FORBIDDEN.test(req.url) || req.url.startsWith('/collab')) {
+        return reply.code(403).send({ error: 'Not available with an API token.' })
+      }
+      // Publishing puts a deck on the open internet: only a person in the app may do that.
+      if (/^\/api\/decks\/[^/]+\/public/.test(req.url) && req.method !== 'GET') {
         return reply.code(403).send({ error: 'Not available with an API token.' })
       }
       if (!tokenLimiter.allow(token.id)) return reply.code(429).send({ error: 'Too many requests for this token. Slow down.' })
@@ -224,10 +254,67 @@ export async function buildApp(config: Config, db: Db) {
 
   registerAccountRoutes(app, { config, users, invites, tokens, collab, safeNext })
 
+  // A path: the browser adds whichever origin it reached the app on.
+  const publicUrl = (slug: string) => `/p/${slug}/`
   const withPreview = async (deck: Deck) => ({
     ...deck,
     previewUrl: previewHosts.url(deck.slug),
     thumbnailAt: await thumbnails.version(deck.id),
+    publicUrl: deck.public && config.publicDecks && (await publisher.builtAt(deck.id)) ? publicUrl(deck.slug) : null,
+  })
+
+  /** Everyone, signed in or not: published decks that have a build. */
+  app.get('/api/public/decks', async (): Promise<PublicDeck[]> => {
+    if (!config.publicDecks) return []
+    const rows = await decks.listPublic()
+    const listed = await Promise.all(
+      rows.map(async (row) => {
+        const builtAt = await publisher.builtAt(row.id)
+        if (!builtAt) return null
+        return { ...row, url: publicUrl(row.slug), builtAt: builtAt.toISOString(), thumbnailAt: await thumbnails.version(`${row.id}-public`) }
+      }),
+    )
+    return listed.filter((d) => d !== null).sort((a, b) => b.builtAt.localeCompare(a.builtAt))
+  })
+
+  async function publicDeck(id: string) {
+    const deck = config.publicDecks ? await decks.get(id) : null
+    return deck && deck.public && !deck.archived ? deck : null
+  }
+
+  app.get<{ Params: { id: string }; Querystring: { scheme?: string; v?: string } }>(
+    '/api/public/decks/:id/thumbnail',
+    async (req, reply) => {
+      const deck = await publicDeck(req.params.id).catch(() => null)
+      const file = deck && thumbnails.file(`${deck.id}-public`, req.query.scheme === 'dark' ? 'dark' : 'light')
+      if (!file || !existsSync(file)) throw app.httpErrors.notFound('No thumbnail')
+      reply.header('cache-control', req.query.v ? 'public, max-age=31536000, immutable' : 'public, no-cache')
+      return reply.type('image/jpeg').send(createReadStream(file))
+    },
+  )
+
+  /** The public site: a static build, so nothing here can write to a deck or reveal notes. */
+  app.get<{ Params: { slug: string; '*'?: string } }>('/p/:slug', async (req, reply) => reply.redirect(`/p/${req.params.slug}/`))
+  app.get<{ Params: { slug: string; '*': string } }>('/p/:slug/*', async (req, reply) => {
+    const row = await decks.bySlug(req.params.slug)
+    const deck = row && (await publicDeck(row.id))
+    if (!deck) return reply.code(404).type('text/plain').send('This deck is not public.')
+    return servePublicFile(reply, publisher.siteDir(deck.id), req.params['*'])
+  })
+
+  app.get<{ Params: { id: string } }>('/api/decks/:id/public', async (req) => {
+    const deck = await loadDeck(req, 'view')
+    return publisher.state(deck.id, deck.public && !deck.archived, publicUrl(deck.slug))
+  })
+
+  app.put<{ Params: { id: string } }>('/api/decks/:id/public', async (req) => {
+    const deck = await loadDeck(req, 'manage')
+    const { public: value } = setPublicSchema.parse(req.body)
+    if (value && !config.publicDecks) throw app.httpErrors.forbidden('Public decks are turned off on this server.')
+    await decks.setPublic(deck.id, value)
+    if (value) publisher.schedule(deck.id)
+    else await publisher.unpublish(deck.id)
+    return publisher.state(deck.id, value && !deck.archived, publicUrl(deck.slug))
   })
 
   app.get<{ Querystring: { archived?: string } }>('/api/decks', async (req) =>
@@ -536,6 +623,7 @@ export async function buildApp(config: Config, db: Db) {
     await collab.flushAll()
     collab.hocuspocus.closeConnections()
     await thumbnails.close()
+    await publisher.close()
     await runner.stopAll()
     previewProxy.close()
   })
@@ -552,7 +640,7 @@ export async function buildApp(config: Config, db: Db) {
     }
   }
 
-  return { app, collab, decks, users, runner, versions, themes, agent, llm, previewProxy, invites, tokens, bootstrapAdmins }
+  return { app, collab, decks, users, runner, versions, themes, agent, llm, previewProxy, invites, tokens, publisher, bootstrapAdmins }
 }
 
 function headmatterOf(markdown: string): string {

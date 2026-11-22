@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useRouter } from 'vue-router'
 import { ref } from 'vue'
 import BrandLogo from '../components/BrandLogo.vue'
 import { api } from '../api'
@@ -18,6 +19,7 @@ const email = ref(rememberedEmail())
 const password = ref('')
 const error = ref<string | null>(null)
 const busy = ref(false)
+const router = useRouter()
 
 async function submit() {
   error.value = null
@@ -35,12 +37,12 @@ async function submit() {
       window.location.href = result.next
       return
     }
-    if (next !== undefined) {
-      const target = result.next ? new URL(result.next) : null
-      window.history.replaceState(null, '', target ? target.pathname + target.search + target.hash : '/')
-    }
+    const target = result.next ? new URL(result.next) : null
     currentUser.value = result.user
     needsLogin.value = false
+    if (next !== undefined || window.location.pathname === '/login') {
+      await router.replace(target ? target.pathname + target.search + target.hash : '/')
+    }
   } catch (e) {
     error.value = (e as Error).message
     password.value = ''

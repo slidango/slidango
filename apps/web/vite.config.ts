@@ -12,6 +12,8 @@ export default defineConfig({
       '/collab': { target: api, ws: true },
       // MCP clients (Claude Code etc.) can use the dev URL from the token dialog too.
       '/mcp': api,
+      // Public decks are static builds served by the app server.
+      '/p/': api,
     },
   },
 })

@@ -1,4 +1,6 @@
 import type {
+  PublicDeck,
+  PublicState,
   ApiToken,
   AuthMode,
   CreatedToken,
@@ -89,6 +91,9 @@ export const api = {
   users: () => request<DirectoryUser[]>('GET', '/users'),
   sharing: (id: string) => request<DeckSharing>('GET', `/decks/${id}/sharing`),
   setAccess: (id: string, access: DeckAccess) => request<DeckSharing>('PUT', `/decks/${id}/access`, { access }),
+  publicState: (id: string) => request<PublicState>('GET', `/decks/${id}/public`),
+  setPublic: (id: string, value: boolean) => request<PublicState>('PUT', `/decks/${id}/public`, { public: value }),
+  publicDecks: () => request<PublicDeck[]>('GET', '/public/decks'),
   setMember: (id: string, userId: string, role: DeckRole) => request<DeckSharing>('PUT', `/decks/${id}/members/${userId}`, { role }),
   removeMember: (id: string, userId: string) => request<DeckSharing>('DELETE', `/decks/${id}/members/${userId}`),
   decks: (archived = false) => request<Deck[]>('GET', `/decks${archived ? '?archived=true' : ''}`),

@@ -1,0 +1,1 @@
+ALTER TABLE "decks" ADD COLUMN "public" boolean DEFAULT false NOT NULL;

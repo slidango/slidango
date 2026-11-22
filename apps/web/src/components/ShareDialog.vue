@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /** Who may see and edit a deck: the access setting plus members with a role. */
-import { computed, onMounted, ref } from 'vue'
-import type { DeckAccess, DeckRole, DeckSharing, DirectoryUser } from '@slidango/shared'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import type { DeckAccess, DeckRole, DeckSharing, DirectoryUser, PublicState } from '@slidango/shared'
 import { api } from '../api'
 import { currentUser } from '../user'
 
@@ -56,8 +56,51 @@ const add = (user: DirectoryUser) => {
   return run(() => api.setMember(props.deckId, user.id, addRole.value))
 }
 
+/** Public link: a static build of the last saved version, for everyone without signing in. */
+const pub = ref<PublicState | null>(null)
+const copied = ref(false)
+const absoluteUrl = computed(() => (pub.value?.url ? new URL(pub.value.url, window.location.origin).href : null))
+let poll: ReturnType<typeof setTimeout> | undefined
+
+function watchBuild(state: PublicState) {
+  pub.value = state
+  clearTimeout(poll)
+  if (state.status === 'building') {
+    poll = setTimeout(async () => watchBuild(await api.publicState(props.deckId).catch(() => state)), 2000)
+  } else if (state.status === 'ready') {
+    emit('changed')
+  }
+}
+
+async function setPublic(value: boolean) {
+  error.value = null
+  if (value && !window.confirm('Make this deck public? Anyone with the link can watch the last saved version, without signing in. Speaker notes are left out.')) {
+    return
+  }
+  try {
+    watchBuild(await api.setPublic(props.deckId, value))
+    emit('changed')
+  } catch (e) {
+    error.value = (e as Error).message
+  }
+}
+
+async function copyLink() {
+  if (!absoluteUrl.value) return
+  await navigator.clipboard.writeText(absoluteUrl.value)
+  copied.value = true
+  setTimeout(() => (copied.value = false), 1500)
+}
+
+const builtAt = computed(() =>
+  pub.value?.builtAt ? new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(pub.value.builtAt)) : null,
+)
+
+onBeforeUnmount(() => clearTimeout(poll))
+
 onMounted(async () => {
   dialog.value?.showModal()
+  api.publicState(props.deckId).then(watchBuild, () => {})
   try {
     ;[sharing.value, directory.value] = await Promise.all([api.sharing(props.deckId), props.canManage ? api.users() : Promise.resolve([])])
   } catch (e) {
@@ -84,6 +127,32 @@ onMounted(async () => {
             </span>
           </label>
         </fieldset>
+
+        <section v-if="pub?.allowed" class="public" data-testid="public-link">
+          <label class="option" :class="{ active: pub.public }">
+            <input type="checkbox" :checked="pub.public" :disabled="!canManage" aria-label="Public link" @change="setPublic(($event.target as HTMLInputElement).checked)" />
+            <span>
+              <strong>Public link</strong>
+              <span class="muted">Anyone with the link can watch the last saved version, signed in or not. It also shows on the start page for visitors. Speaker notes stay private.</span>
+            </span>
+          </label>
+          <div v-if="pub.public" class="public-state">
+            <template v-if="pub.status === 'building'">
+              <span class="spinner" aria-hidden="true" /> Building the public version …
+            </template>
+            <template v-else-if="pub.status === 'error'">
+              <span class="error">The public version could not be built.</span>
+              <details><summary>Log</summary><pre>{{ pub.error }}</pre></details>
+            </template>
+            <template v-if="pub.url">
+              <div class="link">
+                <a :href="pub.url" target="_blank" rel="noopener">{{ absoluteUrl }}</a>
+                <button class="ghost" @click="copyLink">{{ copied ? 'Copied' : 'Copy' }}</button>
+              </div>
+              <span class="muted small">Version of {{ builtAt }}. Save a version to update it.</span>
+            </template>
+          </div>
+        </section>
 
         <div class="eyebrow members-title">Members</div>
         <div v-if="canManage" class="add">
@@ -129,6 +198,15 @@ onMounted(async () => {
 header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.9rem 0.8rem 0.6rem 1.25rem; border-bottom: 1px solid var(--border); }
 h1 { font-size: 18px; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .body { padding: 0.9rem 1.25rem 1.25rem; }
+.public { margin: 0 0 1rem; display: grid; gap: 0.5rem; }
+.public .option input { accent-color: var(--tango-fill); }
+.public-state { display: grid; gap: 0.35rem; font-size: 14px; padding: 0 0.2rem; }
+.public-state .link { display: flex; align-items: center; gap: 0.5rem; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 0.3rem 0.3rem 0.3rem 0.7rem; }
+.public-state .link a { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 400 13px/1.4 var(--font-mono); }
+.public-state .small { font-size: 12.5px; }
+.public-state pre { white-space: pre-wrap; font-size: 11px; max-height: 12rem; overflow: auto; }
+.spinner { display: inline-block; width: 0.8rem; height: 0.8rem; border: 2px solid var(--line); border-top-color: var(--tango); border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: -0.1em; margin-right: 0.3rem; }
+@keyframes spin { to { transform: rotate(360deg); } }
 fieldset { border: none; padding: 0; margin: 0 0 1rem; display: grid; gap: 0.4rem; }
 legend { margin-bottom: 0.4rem; }
 .option { display: flex; gap: 0.6rem; align-items: flex-start; padding: 0.55rem 0.7rem; border: 1px solid var(--line); border-radius: var(--radius-md); cursor: pointer; }

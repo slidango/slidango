@@ -161,6 +161,7 @@ onMounted(async () => {
           </div>
           <div class="badges">
             <span v-if="deck.archived" class="badge">archived</span>
+            <span v-if="deck.public" class="badge public" title="Anyone can watch the last saved version">public</span>
             <span v-if="deck.access === 'members'" class="badge" title="Only members see this deck">members only</span>
             <span v-else-if="deck.access === 'team-view'" class="badge" title="Everyone can view, members edit">view only for team</span>
             <span v-if="deck.role === 'viewer' || deck.can?.edit === false" class="badge">you can view</span>
@@ -196,6 +197,7 @@ onMounted(async () => {
             <td class="title">
               <RouterLink :to="`/decks/${deck.id}`">{{ deck.title }}</RouterLink>
               <span v-if="deck.archived" class="badge">archived</span>
+              <span v-if="deck.public" class="badge public" title="Anyone can watch the last saved version">public</span>
               <span v-if="deck.access === 'members'" class="badge" title="Only members see this deck">members only</span>
               <span v-else-if="deck.access === 'team-view'" class="badge" title="Everyone can view, members edit">view only for team</span>
               <span v-if="deck.role === 'viewer' || deck.can?.edit === false" class="badge">you can view</span>
@@ -299,6 +301,7 @@ tbody tr:not(.empty-row):hover td { background: var(--hover); }
 .button.present span { font-size: 0.7em; margin-right: 0.2rem; vertical-align: 0.1em; }
 .button.present:hover { background: var(--hover); color: var(--ink); }
 .empty { text-align: center; padding: 2rem; }
+.badge.public { color: var(--tango); border-color: color-mix(in srgb, var(--tango) 40%, transparent); }
 
 /* Phones: one card per deck instead of a table that has to scroll sideways. */
 @media (max-width: 700px) {

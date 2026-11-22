@@ -104,3 +104,38 @@ test('an API token lets an MCP client suggest changes that the owner applies', a
   await expect(card).toContainText('Applied')
   await expect(olivia.locator('.cm-content')).toContainText('# Agenda')
 })
+
+test('a public deck is listed on the signed-out start page and plays without signing in', async ({ browser }) => {
+  test.setTimeout(240_000)
+  const olivia = await userPage(browser, 'olivia@example.com', 'Olivia')
+  const deckId = await createDeck(olivia, 'Open Keynote')
+  await olivia.locator('.cm-content').click()
+  await olivia.keyboard.press('ControlOrMeta+End')
+  await olivia.keyboard.type('\n\nSaved for the public\n')
+  await olivia.getByRole('button', { name: 'Save version' }).click()
+  await olivia.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect(olivia.getByRole('status')).toHaveText('Version saved.')
+
+  await olivia.getByRole('button', { name: 'More actions' }).click()
+  await olivia.getByRole('menu').getByRole('button', { name: 'Share' }).click()
+  olivia.once('dialog', (dialog) => void dialog.accept())
+  await olivia.getByLabel('Public link').check()
+  const link = olivia.getByTestId('public-link').locator('.link a')
+  await expect(link).toBeVisible({ timeout: 180_000 })
+  expect(await link.getAttribute('href')).toBe('/p/open-keynote/')
+  await expect(link).toHaveText(`${new URL(baseURL).origin}/p/open-keynote/`)
+
+  // A visitor without any session: the start page lists the deck, the link plays it.
+  const visitor = await (await browser.newContext()).newPage()
+  pages.push(visitor)
+  await visitor.goto('/')
+  const card = visitor.getByTestId('public-decks').locator('li').filter({ hasText: 'Open Keynote' })
+  await expect(card).toContainText('Olivia')
+  await card.getByRole('link', { name: 'Open Keynote' }).click()
+  await expect(visitor).toHaveURL(/\/p\/open-keynote\//)
+  await expect(visitor.locator('.slidev-layout').first()).toContainText('Saved for the public', { timeout: 30_000 })
+
+  // Everything else still needs a login (SSO here: off to oauth2-proxy).
+  await visitor.goto(`/decks/${deckId}`)
+  await expect(visitor).toHaveURL(/\/oauth2\/sign_in\?rd=/)
+})

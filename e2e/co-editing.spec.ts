@@ -132,7 +132,7 @@ test('preview follows the cursor without reloading and drives the editor back', 
     await page.reload()
     await expect(card.locator('img')).toBeVisible({ timeout: 1_000 })
   }).toPass({ timeout: 60_000 })
-  expect(await card.locator('img').evaluate((img: HTMLImageElement) => img.naturalWidth)).toBe(960)
+  await expect.poll(() => card.locator('img').evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth)).toBe(960)
   const present = card.getByRole('link', { name: 'Present' })
   await expect(present).toHaveAttribute('href', `${baseURL.replace('//slides.', '//preview-deck.slides.')}`)
   await expect(present).toHaveAttribute('target', '_blank')

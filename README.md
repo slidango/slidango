@@ -94,7 +94,7 @@ Start a deck with *Slidango AI*, describe the talk and drop in your notes, PDFs 
 
 ### Share what you want
 
-*Everyone can edit*, *Everyone can view* or *Members only*, with owners, editors and viewers per deck. Sign in through your SSO, or with accounts your admins invite by link.
+*Everyone can edit*, *Everyone can view* or *Members only*, with owners, editors and viewers per deck. Sign in through your SSO, or with accounts your admins invite by link. A **public link** puts the last saved version on the web for anyone, without notes; visitors find public decks on the start page.
 
 <br>
 

@@ -66,6 +66,8 @@ export const decks = pgTable('decks', {
   /** Who sees the deck besides its members: everyone may edit, everyone may view, or members only. */
   access: text('access', { enum: ['team-edit', 'team-view', 'members'] }).notNull().default('team-edit'),
   archived: boolean('archived').notNull().default(false),
+  /** Anyone, signed in or not, can watch the last saved version at /p/<slug>/ (a static build without notes). */
+  public: boolean('public').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })

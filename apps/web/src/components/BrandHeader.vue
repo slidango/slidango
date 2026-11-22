@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { currentUser, logout } from '../user'
+import { currentUser, logout, signIn } from '../user'
 import { theme, toggleTheme } from '../composables/theme'
 import AccountDialog from './AccountDialog.vue'
 import BrandLogo from './BrandLogo.vue'
@@ -41,7 +41,8 @@ function closeSettings() {
           <path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z" />
         </svg>
       </button>
-      <MenuButton :label="currentUser?.name ?? 'Account'" title="Account" class="account-menu">
+      <button v-if="!currentUser" class="primary sign-in" @click="signIn('/')">Sign in</button>
+      <MenuButton v-else :label="currentUser.name" title="Account" class="account-menu">
         <template #label><span class="user">{{ currentUser?.name }}</span></template>
         <button @click="account = 'profile'">Account</button>
         <button @click="account = 'tokens'">API tokens <span class="muted">MCP</span></button>
@@ -85,6 +86,7 @@ function closeSettings() {
 .logo { display: flex; padding: var(--space-1) 0; }
 .spacer { flex: 1; }
 .user { font: 500 12px/1.3 var(--font-mono); color: var(--ink-muted); }
+.sign-in { padding: 0.3rem 0.9rem; border-radius: var(--radius-pill); font-size: 14px; }
 .account-menu :deep(> button) { width: auto; padding: 0.3rem 0.7rem; border-radius: var(--radius-pill); border-color: var(--line); background: transparent; }
 .account-menu :deep(> button:hover) { border-color: var(--line-strong); background: var(--hover); }
 .round-button { display: grid; place-items: center; width: 2rem; height: 2rem; padding: 0; border-radius: var(--radius-pill); background: transparent; border-color: var(--line); color: var(--ink-muted); }

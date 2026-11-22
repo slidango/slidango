@@ -68,6 +68,18 @@ Each deck has an access setting (**⋯ → Share**) and members with a role.
 
 Admins can do everything and see every deck. Decks you can't see answer `404`. Changing access reconnects open editors, so new rights apply at once.
 
+### Public decks
+
+Owners (and admins) can turn on **Public link** in **⋯ → Share**. Then anyone, signed in or not, can watch the deck at `https://<APP_DOMAIN>/p/<slug>/`, and the start page lists it for visitors who aren't signed in (instead of a bare login screen).
+
+- The public link shows the **last saved version**, not what is being typed: Slidango builds it with `slidev build --without-notes` from the deck's last Git commit, after it is made public and after every *Save version*. Speaker notes stay private.
+- Visitors only ever get these static files. They never reach a deck's Slidev dev server, which serves notes and accepts writes to `slides.md`.
+- Turning the link off takes the deck offline at once; archived decks are offline too.
+- API tokens can't publish; only a person in the app can.
+- `PUBLIC_DECKS=off` turns the feature off for the whole server.
+
+**With SSO (`AUTH_MODE=oidc`), update `deploy/caddy-auth/oidc.caddy`** from this release: it lets the start page, `/p/` and `/api/public/` through without a login, while the rest of the API keeps requiring one. With the old file, public links still ask visitors to sign in.
+
 ## API tokens and MCP
 
 Everyone creates personal tokens in **Account → API tokens**: *Read only* or *Read and suggest changes*, optionally expiring. A token (`sld_…`) is shown once and stored as a SHA-256 hash. It never does more than its owner, never admin tasks, and stops working the moment it is revoked or its owner is disabled.
@@ -118,6 +130,7 @@ In `oidc` mode, Caddy lets requests with `Authorization: Bearer sld_…` to `/mc
 | `RUNNER_MAX_INSTANCES` | `15` | Slidev processes at most. Measure RAM per process before you size the host. |
 | `RUNNER_IDLE_MINUTES` | `10` | Stop a preview without editors or open presentations |
 | `THUMBNAILS` | `on` | `off` stops rendering slide 1 for the deck overview (cards then show the title) |
+| `PUBLIC_DECKS` | `on` | `off` forbids public links (see [Public decks](#public-decks)) |
 | `CHROMIUM_PATH` | `/usr/bin/chromium-headless-shell` in the image | Chromium for those images; outside Docker, Playwright's browser is used |
 
 **Templates** are Slidev themes. The Slidango template ships with the app and is the default until an admin picks another one. More templates, and new versions of a template, are uploaded as `.zip` or `.tgz` in **Settings → Templates**: a new package name adds a template, the same name adds a version (the version comes from `package.json` unless you type one). New decks pick a template when they are created; existing decks switch template or version in **⋯ → Template**. Admins delete versions in **Settings → Templates** (not the built-in one or the default); decks still using a version are moved to another template first. Templates are installed without install scripts, smoke-tested with their starter deck, then set as default. Format: [`template.md`](template.md).

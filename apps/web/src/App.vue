@@ -1,20 +1,32 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { appErrors, dismissError } from './errors'
-import { currentUser, needsLogin, userReady } from './user'
+import { useRouter } from 'vue-router'
+import { authMode, currentUser, initialPath, needsLogin, signIn, userReady } from './user'
+import PublicHome from './views/PublicHome.vue'
 import InviteView from './views/InviteView.vue'
 import LoginView from './views/LoginView.vue'
 
 // Invitation and reset links work signed in or not, so they are handled before the login gate.
 const inviteToken = /^\/invite\/([A-Za-z0-9_-]+)\/?$/.exec(window.location.pathname)?.[1] ?? null
 const error = ref<string | null>(null)
-userReady.catch((e: Error) => (error.value = e.message))
+const router = useRouter()
+userReady.then(
+  () => {
+    // Signed in on /login (e.g. an old bookmark): go to the decks.
+    if (currentUser.value && initialPath === '/login') void router.replace('/')
+    // SSO, signed out, a page other than the start page: oauth2-proxy's login, then back here.
+    if (needsLogin.value && authMode.value !== 'local' && initialPath !== '/') signIn()
+  },
+  (e: Error) => (error.value = e.message),
+)
 </script>
 
 <template>
   <InviteView v-if="inviteToken" :token="inviteToken" />
   <div v-else-if="error" class="fatal">Sign-in failed: {{ error }}</div>
-  <LoginView v-else-if="needsLogin" />
+  <PublicHome v-else-if="needsLogin && initialPath === '/'" />
+  <LoginView v-else-if="needsLogin && authMode === 'local'" />
   <RouterView v-else-if="currentUser" />
   <div class="errors" role="alert" aria-live="assertive">
     <div v-for="item in appErrors" :key="item.id" class="error-toast">

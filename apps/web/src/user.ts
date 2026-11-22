@@ -3,8 +3,11 @@ import type { AuthMode, User } from '@slidango/shared'
 import { ApiError, api } from './api'
 
 export const currentUser = ref<User | null>(null)
+/** Path the app was opened with, read before the router touches the URL. */
+export const initialPath = window.location.pathname
 /** `local`: the app shows its own login form; `oidc`: oauth2-proxy handles login. */
 export const authMode = ref<AuthMode>('oidc')
+/** Signed out: the start page shows public decks, every other page asks to sign in. */
 export const needsLogin = ref(false)
 
 export const userReady = (async () => {
@@ -12,10 +15,19 @@ export const userReady = (async () => {
   try {
     currentUser.value = await api.me()
   } catch (e) {
-    if (e instanceof ApiError && e.status === 401 && authMode.value === 'local') needsLogin.value = true
+    if (e instanceof ApiError && e.status === 401) needsLogin.value = true
     else throw e
   }
 })()
+
+/** Local accounts: the app's login form. SSO: oauth2-proxy, back to `next` afterwards. */
+export function signIn(next: string = window.location.pathname + window.location.search) {
+  if (authMode.value === 'local') {
+    window.location.href = next === '/' ? '/login' : `/login?next=${encodeURIComponent(next)}`
+  } else {
+    window.location.href = `/oauth2/sign_in?rd=${encodeURIComponent(new URL(next, window.location.origin).href)}`
+  }
+}
 
 export async function logout() {
   if (authMode.value === 'local') await api.logout()

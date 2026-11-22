@@ -89,6 +89,8 @@ export interface Config {
   runner: { maxInstances: number; idleMs: number; portRange: [number, number]; startTimeoutMs: number }
   /** Slide-1 images for the deck overview, rendered with a headless Chromium. */
   thumbnails: { enabled: boolean; chromiumPath: string }
+  /** Decks may be published for everyone (PUBLIC_DECKS=off forbids it). */
+  publicDecks: boolean
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -139,5 +141,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       enabled: env.THUMBNAILS ? env.THUMBNAILS !== 'off' : !process.env.VITEST,
       chromiumPath: env.CHROMIUM_PATH ?? '',
     },
+    publicDecks: env.PUBLIC_DECKS !== 'off',
   }
 }

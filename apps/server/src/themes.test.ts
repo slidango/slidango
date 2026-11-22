@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -190,5 +191,35 @@ describe('templates', () => {
       payload: { themeId: 'slidev-theme-acme@1.0.0' },
     })
     expect(other.statusCode).toBe(403)
+
+    // Deleting versions: never the built-in one or the default, and decks in use move first.
+    const del = (id: string, moveTo?: string) =>
+      server.app.inject({
+        method: 'DELETE',
+        url: `/api/admin/themes/${encodeURIComponent(id)}${moveTo ? `?moveTo=${encodeURIComponent(moveTo)}` : ''}`,
+        headers: admin,
+      })
+    const builtinId = (await server.themes.list()).find((t) => t.builtin)!.id
+    expect((await del(builtinId)).json().error).toMatch(/built-in/)
+    expect((await del('slidev-theme-acme@1.0.0')).json().error).toMatch(/default first/)
+    expect((await server.app.inject({ method: 'DELETE', url: '/api/admin/themes/x', headers: user })).statusCode).toBe(403)
+
+    const usedBy = (
+      await server.app.inject({ url: `/api/admin/themes/${encodeURIComponent('slidev-theme-beta@1.0.0')}/decks`, headers: admin })
+    ).json<{ id: string }[]>()
+    expect(usedBy.map((d) => d.id).sort()).toEqual([starter.id, picked.id].sort())
+    const refused = await del('slidev-theme-beta@1.0.0')
+    expect(refused.statusCode).toBe(409)
+    expect(refused.json().error).toMatch(/Still used by 2 decks/)
+
+    const deleted = await del('slidev-theme-beta@1.0.0', 'slidev-theme-acme@1.1.0')
+    expect(deleted.statusCode).toBe(200)
+    expect(deleted.json<Theme[]>().map((t) => t.id)).not.toContain('slidev-theme-beta@1.0.0')
+    for (const id of [starter.id, picked.id]) {
+      expect((await server.app.inject({ url: `/api/decks/${id}`, headers: user })).json()).toMatchObject({ themeId: 'slidev-theme-acme@1.1.0' })
+      await server.collab.flushDeck(id)
+      expect(await readFile(join(dataDir, 'decks', id, 'slides.md'), 'utf8')).toMatch(/^---\n(?:.*\n)*?theme: slidev-theme-acme\n/)
+    }
+    expect(existsSync(server.themes.dir('slidev-theme-beta@1.0.0'))).toBe(false)
   })
 })

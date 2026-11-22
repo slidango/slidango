@@ -75,6 +75,31 @@ async function makeDefault(v: string) {
   themes.value = await api.admin.setDefaultTheme(v)
 }
 
+/** Delete flow for one template version: decks still using it must move to another template first. */
+const deleting = ref<{ theme: Theme; decks: { id: string; title: string; archived: boolean }[]; moveTo: string; busy: boolean; error: string | null } | null>(null)
+
+async function startDelete(theme: Theme) {
+  openLog.value = null
+  const decks = await api.admin.themeDecks(theme.id)
+  const fallback = themes.value.find((t) => t.isDefault && t.status === 'ready')
+  deleting.value = { theme, decks, moveTo: fallback && fallback.id !== theme.id ? fallback.id : '', busy: false, error: null }
+}
+
+async function confirmDelete() {
+  const d = deleting.value
+  if (!d) return
+  d.busy = true
+  d.error = null
+  try {
+    themes.value = await api.admin.deleteTheme(d.theme.id, d.decks.length ? d.moveTo : undefined)
+    deleting.value = null
+  } catch (e) {
+    d.error = (e as Error).message
+  } finally {
+    d.busy = false
+  }
+}
+
 // Installs run in the background; refresh while one is pending.
 const timer = setInterval(() => {
   if (themes.value.some((t) => t.status === 'installing')) void load()
@@ -130,6 +155,44 @@ onMounted(() => {
                     <td class="actions">
                       <button v-if="theme.status === 'ready' && !theme.isDefault" @click="makeDefault(theme.id)">Make default</button>
                       <button v-if="theme.log" @click="openLog = openLog === theme.id ? null : theme.id">Log</button>
+                      <button
+                        v-if="!theme.builtin && !theme.isDefault && theme.status !== 'installing'"
+                        class="ghost danger"
+                        @click="deleting?.theme.id === theme.id ? (deleting = null) : startDelete(theme)"
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                  <tr v-if="deleting?.theme.id === theme.id" class="confirm">
+                    <td colspan="4">
+                      <template v-if="deleting.decks.length === 0">
+                        <p>Delete <strong>{{ theme.label }} {{ theme.version }}</strong>? No deck uses it; its installed files are removed.</p>
+                      </template>
+                      <template v-else>
+                        <p>
+                          <strong>{{ theme.label }} {{ theme.version }}</strong> is used by {{ deleting.decks.length }}
+                          {{ deleting.decks.length === 1 ? 'deck' : 'decks' }}:
+                          {{ deleting.decks.slice(0, 5).map((d) => d.title + (d.archived ? ' (archived)' : '')).join(', ') }}{{ deleting.decks.length > 5 ? ` and ${deleting.decks.length - 5} more` : '' }}.
+                          They switch to another template first (saved as a version in each deck).
+                        </p>
+                        <label class="move">
+                          Move them to
+                          <select v-model="deleting.moveTo">
+                            <option value="" disabled>Pick a template</option>
+                            <option v-for="t in themes.filter((x) => x.status === 'ready' && x.id !== theme.id)" :key="t.id" :value="t.id">
+                              {{ t.label }} {{ t.version }}{{ t.isDefault ? ' (default)' : '' }}
+                            </option>
+                          </select>
+                        </label>
+                      </template>
+                      <div class="confirm-actions">
+                        <button class="primary" :disabled="deleting.busy || (deleting.decks.length > 0 && !deleting.moveTo)" @click="confirmDelete">
+                          {{ deleting.busy ? 'Deleting …' : deleting.decks.length ? 'Move decks and delete' : 'Delete' }}
+                        </button>
+                        <button :disabled="deleting.busy" @click="deleting = null">Cancel</button>
+                        <span v-if="deleting.error" class="error">{{ deleting.error }}</span>
+                      </div>
                     </td>
                   </tr>
                   <tr v-if="openLog === theme.id">
@@ -233,6 +296,11 @@ th, td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid var
 tr.group td { background: var(--surface-100); padding-top: 0.6rem; }
 tr.group code { font-size: 11.5px; margin-left: 0.4rem; }
 .version { font: 500 13px/1.3 var(--font-mono); }
+.danger { color: var(--danger); }
+tr.confirm td { background: var(--danger-soft); }
+tr.confirm p { margin: 0 0 0.5rem; }
+.move { display: flex; gap: 0.5rem; align-items: center; font-size: 13px; color: var(--ink-muted); margin-bottom: 0.5rem; }
+.confirm-actions { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
 .ready { color: var(--success); }
 .failed { color: var(--danger); }
 .actions { display: flex; gap: 0.4rem; }

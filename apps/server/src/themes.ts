@@ -177,6 +177,31 @@ export class Themes {
     })
   }
 
+  /** Decks (archived ones too) that use an installed template version. */
+  async usage(id: string): Promise<{ id: string; title: string; archived: boolean }[]> {
+    return this.db
+      .select({ id: schema.decks.id, title: schema.decks.title, archived: schema.decks.archived })
+      .from(schema.decks)
+      .where(eq(schema.decks.themeId, id))
+      .orderBy(schema.decks.title)
+  }
+
+  /**
+   * Deletes an installed template version: its row and its files. Not the built-in template, not the
+   * default (pick another one first), and not while decks still use it (move them first).
+   */
+  async remove(id: string): Promise<void> {
+    const theme = await this.get(id)
+    if (!theme) throw new ThemeError('Template not found')
+    if (theme.builtin) throw new ThemeError('The built-in template cannot be deleted')
+    if (theme.isDefault) throw new ThemeError('Make another template the default first')
+    if (theme.status === 'installing') throw new ThemeError('Wait until the installation has finished')
+    const decks = await this.usage(id)
+    if (decks.length) throw new ThemeError(`Still used by ${decks.length} deck${decks.length === 1 ? '' : 's'}`)
+    await this.db.delete(schema.themes).where(eq(schema.themes.id, id))
+    await rm(this.dir(id), { recursive: true, force: true })
+  }
+
   /** Starter deck of a theme, with the theme set and Slidev's editor off. */
   async starter(id: string, name: string, title: string): Promise<string | null> {
     const content = await readFile(join(this.packageDir(id), 'starter.md'), 'utf8').catch(() => null)

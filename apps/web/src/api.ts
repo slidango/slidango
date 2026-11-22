@@ -131,6 +131,10 @@ export const api = {
       return request<Theme>('POST', '/admin/themes', form)
     },
     setDefaultTheme: (id: string) => request<Theme[]>('PUT', `/admin/themes/${encodeURIComponent(id)}/default`),
+    themeDecks: (id: string) =>
+      request<{ id: string; title: string; archived: boolean }[]>('GET', `/admin/themes/${encodeURIComponent(id)}/decks`),
+    deleteTheme: (id: string, moveTo?: string) =>
+      request<Theme[]>('DELETE', `/admin/themes/${encodeURIComponent(id)}${moveTo ? `?moveTo=${encodeURIComponent(moveTo)}` : ''}`),
     previews: () => request<RunningPreview[]>('GET', '/admin/previews'),
     people: () => request<{ mode: AuthMode; people: Person[]; invites: PendingInvite[] }>('GET', '/admin/people'),
     invite: (email: string, grantAdmin: boolean) => request<InviteLink>('POST', '/admin/invites', { email, grantAdmin }),

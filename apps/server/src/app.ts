@@ -423,6 +423,44 @@ export async function buildApp(config: Config, db: Db) {
     return themes.list()
   })
 
+  app.get<{ Params: { id: string } }>('/api/admin/themes/:id/decks', async (req) => {
+    requireAdmin(req)
+    return themes.usage(req.params.id)
+  })
+
+  /**
+   * Deletes a template version. With `moveTo`, decks still using it switch to that template first
+   * (same path as ⋯ → Template, with a version entry each); without it, a version in use is refused.
+   */
+  app.delete<{ Params: { id: string }; Querystring: { moveTo?: string } }>('/api/admin/themes/:id', async (req) => {
+    requireAdmin(req)
+    const theme = await themes.get(req.params.id)
+    if (!theme) throw app.httpErrors.notFound('Template not found')
+    // Refuse before moving any deck, so a refused delete never leaves decks switched.
+    if (theme.builtin) throw app.httpErrors.conflict('The built-in template cannot be deleted')
+    if (theme.isDefault) throw app.httpErrors.conflict('Make another template the default first')
+    if (theme.status === 'installing') throw app.httpErrors.conflict('Wait until the installation has finished')
+    const using = await themes.usage(theme.id)
+    if (using.length) {
+      if (!req.query.moveTo) {
+        throw app.httpErrors.conflict(`Still used by ${using.length} deck${using.length === 1 ? '' : 's'}. Move them to another template first.`)
+      }
+      if (req.query.moveTo === theme.id) throw app.httpErrors.badRequest('Pick a different template to move the decks to')
+      const target = await readyTheme(req.query.moveTo)
+      for (const deck of using) {
+        const row = await decks.get(deck.id)
+        if (row) await switchTemplate(row, target, req.user!)
+      }
+    }
+    try {
+      await themes.remove(theme.id)
+    } catch (err) {
+      if (err instanceof ThemeError) throw app.httpErrors.conflict(err.message)
+      throw err
+    }
+    return themes.list()
+  })
+
   app.get('/api/admin/previews', async (req) => {
     requireAdmin(req)
     return runner.list()

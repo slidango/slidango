@@ -133,7 +133,7 @@ Images for every green build are published to `ghcr.io/slidango/slidango`. Start
 >
 > — Gabriel Lipnik, [gabriellipnik.at](https://gabriellipnik.at)
 
-Slidango is a private open-source project. Questions, ideas and bug reports are welcome in the [issues](https://github.com/slidango/slidango/issues). If you want to contribute, the **[development guide](docs/development.md)** gets you running in a few minutes.
+Slidango is a private open-source project. Questions, ideas and bug reports are welcome in the [issues](https://github.com/slidango/slidango/issues). If you want to contribute, read **[CONTRIBUTING.md](CONTRIBUTING.md)**; the **[development guide](docs/development.md)** gets you running in a few minutes.
 
 ## License
 

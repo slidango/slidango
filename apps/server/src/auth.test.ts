@@ -5,7 +5,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { buildApp } from './app'
 import { createSession, hashPassword, readSession, verifyPassword } from './auth'
 import { loadConfig } from './config'
-import { type Db, openDb } from './db'
+import type { Db } from './db'
+import { openTestDb } from './test-db'
 
 const SECRET = 'x'.repeat(40)
 
@@ -15,7 +16,7 @@ let closeDb: () => Promise<void>
 
 beforeAll(async () => {
   dataDir = await mkdtemp(join(tmpdir(), 'slidango-auth-'))
-  ;({ db, close: closeDb } = await openDb(process.env.TEST_DATABASE_URL ?? 'pglite:memory'))
+  ;({ db, close: closeDb } = await openTestDb())
 })
 
 afterAll(async () => {

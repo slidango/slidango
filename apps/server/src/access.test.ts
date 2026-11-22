@@ -8,7 +8,8 @@ import type { Deck, DeckAccess, DeckRole } from '@slidango/shared'
 import { buildApp } from './app'
 import { can } from './auth'
 import { loadConfig } from './config'
-import { type Db, openDb } from './db'
+import type { Db } from './db'
+import { openTestDb } from './test-db'
 
 const owner = { 'x-auth-request-email': 'owner@example.com', 'x-auth-request-preferred-username': 'Olivia' }
 const other = { 'x-auth-request-email': 'other@example.com', 'x-auth-request-preferred-username': 'Oscar' }
@@ -20,7 +21,7 @@ let closeDb: () => Promise<void>
 
 beforeAll(async () => {
   dataDir = await mkdtemp(join(tmpdir(), 'slidango-access-'))
-  ;({ db, close: closeDb } = await openDb(process.env.TEST_DATABASE_URL ?? 'pglite:memory'))
+  ;({ db, close: closeDb } = await openTestDb())
 })
 
 afterAll(async () => {

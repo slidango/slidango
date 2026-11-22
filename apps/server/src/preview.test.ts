@@ -7,8 +7,9 @@ import WebSocket from 'ws'
 import type { Deck, Preview } from '@slidango/shared'
 import { buildApp } from './app'
 import { loadConfig } from './config'
-import { type Db, openDb } from './db'
+import type { Db } from './db'
 import { PreviewHosts } from './preview'
+import { openTestDb } from './test-db'
 
 const alice = { 'x-auth-request-email': 'alice@example.com' }
 
@@ -33,7 +34,7 @@ describe('preview, versions and assets', () => {
 
   beforeAll(async () => {
     dataDir = await mkdtemp(join(tmpdir(), 'slidango-'))
-    ;({ db, close: closeDb } = await openDb(process.env.TEST_DATABASE_URL ?? 'pglite:memory'))
+    ;({ db, close: closeDb } = await openTestDb())
     const built = await buildApp(loadConfig({ DATA_DIR: dataDir, PREVIEW_URL: 'http://{slug}.localhost:3000' }), db)
     built.app.log.level = 'warn'
     await built.app.listen({ port: 0, host: '127.0.0.1' })

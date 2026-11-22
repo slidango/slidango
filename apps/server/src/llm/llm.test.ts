@@ -5,8 +5,9 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { type ChatMessage, type ChatSession, type Deck, type LlmEvent, type Proposal, parseDeck } from '@slidango/shared'
 import { buildApp } from '../app'
 import { loadConfig } from '../config'
-import { type Db, openDb } from '../db'
+import type { Db } from '../db'
 import { type MockHandler, type MockRequest, startMockOpenAI, textOf } from './mock-openai'
+import { openTestDb } from '../test-db'
 
 const alice = { 'x-auth-request-email': 'alice@example.com', 'x-auth-request-preferred-username': 'Alice' }
 const admin = { 'x-auth-request-email': 'admin@example.com' }
@@ -22,7 +23,7 @@ let base: string
 beforeAll(async () => {
   mock = await startMockOpenAI((req) => handler(req))
   dataDir = await mkdtemp(join(tmpdir(), 'slidango-llm-'))
-  ;({ db, close: closeDb } = await openDb(process.env.TEST_DATABASE_URL ?? 'pglite:memory'))
+  ;({ db, close: closeDb } = await openTestDb())
   server = await buildApp(
     loadConfig({ DATA_DIR: dataDir, ADMIN_EMAILS: 'admin@example.com', LLM_BASE_URL: mock.baseUrl, LLM_MODEL: 'mock-model' }),
     db,

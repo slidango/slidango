@@ -7,7 +7,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { Deck, Preview, Theme } from '@slidango/shared'
 import { buildApp } from './app'
 import { loadConfig } from './config'
-import { type Db, openDb } from './db'
+import type { Db } from './db'
+import { openTestDb } from './test-db'
 
 const admin = { 'x-auth-request-email': 'admin@example.com' }
 const user = { 'x-auth-request-email': 'user@example.com' }
@@ -43,7 +44,7 @@ describe('templates', () => {
 
   beforeAll(async () => {
     dataDir = await mkdtemp(join(tmpdir(), 'slidango-'))
-    ;({ db, close: closeDb } = await openDb(process.env.TEST_DATABASE_URL ?? 'pglite:memory'))
+    ;({ db, close: closeDb } = await openTestDb())
     server = await buildApp(
       loadConfig({ DATA_DIR: dataDir, ADMIN_EMAILS: 'admin@example.com', PREVIEW_URL: 'http://{slug}.slides.localhost:3000' }),
       db,

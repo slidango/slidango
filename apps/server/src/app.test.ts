@@ -8,8 +8,9 @@ import * as Y from 'yjs'
 import { type Deck, SLIDES_TEXT, collabDocumentName } from '@slidango/shared'
 import { buildApp } from './app'
 import { loadConfig } from './config'
-import { type Db, openDb, schema } from './db'
+import { type Db, schema } from './db'
 import { eq } from 'drizzle-orm'
+import { openTestDb } from './test-db'
 
 const alice = { 'x-auth-request-email': 'alice@example.com', 'x-auth-request-preferred-username': 'Alice' }
 const bob = { 'x-auth-request-email': 'Bob@Example.com', 'x-auth-request-user': 'bob' }
@@ -20,7 +21,7 @@ let closeDb: () => Promise<void>
 
 beforeAll(async () => {
   dataDir = await mkdtemp(join(tmpdir(), 'slidango-'))
-  ;({ db, close: closeDb } = await openDb(process.env.TEST_DATABASE_URL ?? 'pglite:memory'))
+  ;({ db, close: closeDb } = await openTestDb())
 })
 
 afterAll(async () => {

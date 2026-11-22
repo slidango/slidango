@@ -166,8 +166,9 @@ onMounted(async () => {
             <span v-if="deck.role === 'viewer' || deck.can?.edit === false" class="badge">you can view</span>
           </div>
           <div class="foot">
-            <span class="meta" :title="`Edited ${dateFormat.format(new Date(deck.updatedAt))} · ${templateLabel(themes, deck.themeId)}`">
-              {{ shortDate.format(new Date(deck.updatedAt)) }} · {{ templateLabel(themes, deck.themeId) }}
+            <span class="meta">
+              <span class="template" :title="templateLabel(themes, deck.themeId)">{{ templateLabel(themes, deck.themeId) }}</span>
+              <span :title="`Edited ${dateFormat.format(new Date(deck.updatedAt))}`">{{ shortDate.format(new Date(deck.updatedAt)) }}</span>
             </span>
             <a
               v-if="deck.previewUrl"
@@ -238,9 +239,10 @@ onMounted(async () => {
 .view-toggle svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.4; }
 
 .cards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(15.5rem, 1fr)); gap: 1.1rem; }
-.card { display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; transition: border-color 0.15s var(--ease), box-shadow 0.15s var(--ease), transform 0.15s var(--ease); }
-.card:hover { border-color: var(--border-strong); box-shadow: var(--shadow); transform: translateY(-1px); }
-.thumb { display: block; aspect-ratio: 16 / 9; border-bottom: 1px solid var(--border); background: var(--surface-2); overflow: hidden; }
+/* No transform on hover: it would become the containing block of the fixed ⋯ menu and clip it. */
+.card { display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); transition: border-color 0.15s var(--ease), box-shadow 0.15s var(--ease); }
+.card:hover { border-color: var(--border-strong); box-shadow: var(--shadow); }
+.thumb { display: block; border-radius: var(--radius-lg) var(--radius-lg) 0 0; aspect-ratio: 16 / 9; border-bottom: 1px solid var(--border); background: var(--surface-2); overflow: hidden; }
 .thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
 /* Until slide 1 has been rendered: the title on the dot grid of the editor stage. */
 .placeholder { display: flex; align-items: flex-end; width: 100%; height: 100%; padding: 1rem 1.1rem; box-sizing: border-box; background-image: radial-gradient(var(--line) 1px, transparent 1px); background-size: 14px 14px; }
@@ -255,7 +257,10 @@ onMounted(async () => {
 .badges { display: flex; flex-wrap: wrap; gap: 0.3rem; }
 .badges:empty { display: none; }
 .foot { display: flex; align-items: center; gap: 0.2rem; margin-top: auto; }
-.foot .meta { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.foot { align-items: flex-end; }
+.foot .meta { flex: 1; min-width: 0; display: grid; gap: 0.1rem; white-space: normal; }
+.foot .meta > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.foot .template { color: var(--ink-muted); }
 .foot .button.present { padding: 0.25rem 0.55rem; font-size: 13px; }
 .cards .empty { grid-column: 1 / -1; text-align: center; padding: 2.5rem; border: 1px dashed var(--border); border-radius: var(--radius-lg); }
 .create-dialog { border: 1px solid var(--line); padding: 0; border-radius: var(--radius-lg); width: min(28rem, calc(100vw - 2rem)); box-shadow: var(--shadow); background: var(--surface); color: var(--text); }

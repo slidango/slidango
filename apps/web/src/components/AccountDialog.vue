@@ -3,6 +3,7 @@
 import { computed, onMounted, ref } from 'vue'
 import type { ApiToken, CreatedToken, TokenScope } from '@slidango/shared'
 import { api } from '../api'
+import { clientGuides } from '../mcpClients'
 import { authMode, currentUser } from '../user'
 
 const props = defineProps<{ initialTab?: 'profile' | 'tokens' }>()
@@ -57,16 +58,9 @@ const tokenError = ref<string | null>(null)
 const copied = ref<string | null>(null)
 
 const mcpUrl = `${window.location.origin}/mcp`
-const claudeCode = computed(
-  () => `claude mcp add --transport http slidango ${mcpUrl} \\\n  --header "Authorization: Bearer ${created.value?.token ?? 'sld_…'}"`,
-)
-const jsonConfig = computed(() =>
-  JSON.stringify(
-    { mcpServers: { slidango: { type: 'http', url: mcpUrl, headers: { Authorization: `Bearer ${created.value?.token ?? 'sld_…'}` } } } },
-    null,
-    2,
-  ),
-)
+const guides = computed(() => clientGuides(mcpUrl, created.value?.token ?? 'sld_…'))
+const client = ref('claude-code')
+const guide = computed(() => guides.value.find((g) => g.id === client.value) ?? guides.value[0]!)
 
 async function loadTokens() {
   tokens.value = await api.tokens()
@@ -165,15 +159,29 @@ onMounted(() => {
               <code>{{ created.token }}</code>
               <button class="ghost" @click="copy(created.token, 'token')">{{ copied === 'token' ? 'Copied' : 'Copy' }}</button>
             </div>
-            <h3>Claude Code</h3>
-            <div class="snippet">
-              <pre>{{ claudeCode }}</pre>
-              <button class="ghost" @click="copy(claudeCode.replace('\\\n  ', ''), 'cc')">{{ copied === 'cc' ? 'Copied' : 'Copy' }}</button>
-            </div>
-            <h3>Other MCP clients</h3>
-            <div class="snippet">
-              <pre>{{ jsonConfig }}</pre>
-              <button class="ghost" @click="copy(jsonConfig, 'json')">{{ copied === 'json' ? 'Copied' : 'Copy' }}</button>
+            <h3>Connect a client</h3>
+            <nav class="clients" role="tablist" aria-label="MCP client">
+              <button
+                v-for="g in guides"
+                :key="g.id"
+                role="tab"
+                :aria-selected="client === g.id"
+                :class="{ active: client === g.id }"
+                @click="client = g.id"
+              >
+                {{ g.name }}
+              </button>
+            </nav>
+            <div class="guide" role="tabpanel">
+              <ol class="steps">
+                <li v-for="step in guide.steps" :key="step">{{ step }}</li>
+              </ol>
+              <div class="where">{{ guide.where }}</div>
+              <div class="snippet">
+                <pre>{{ guide.code }}</pre>
+                <button class="ghost" @click="copy(guide.code.replace(/\\\n\s*/g, ''), guide.id)">{{ copied === guide.id ? 'Copied' : 'Copy' }}</button>
+              </div>
+              <p v-if="guide.note" class="muted note">{{ guide.note }}</p>
             </div>
             <button class="done" @click="created = null">Done</button>
           </section>
@@ -229,7 +237,7 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.account { border: 1px solid var(--line); padding: 0; border-radius: var(--radius-lg); width: min(46rem, calc(100vw - 2rem)); max-height: calc(100dvh - 2rem); box-shadow: var(--shadow); background: var(--surface); color: var(--text); }
+.account { border: 1px solid var(--line); padding: 0; border-radius: var(--radius-lg); width: min(62rem, calc(100vw - 2rem)); max-height: calc(100dvh - 2rem); box-shadow: var(--shadow); background: var(--surface); color: var(--text); }
 .frame { display: flex; flex-direction: column; max-height: calc(100dvh - 2rem); }
 header { display: flex; align-items: center; gap: 1rem; padding: 0.8rem 0.8rem 0 1.25rem; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
 h1 { font-size: 20px; margin: 0 0 0.6rem; }
@@ -257,6 +265,13 @@ label { display: grid; gap: 0.2rem; font-size: 13px; color: var(--ink-muted); }
 .secret button, .snippet button { color: var(--code-muted); }
 .secret button:hover, .snippet button:hover { color: var(--code-ink) !important; background: rgba(255, 255, 255, 0.08) !important; }
 .done { margin-top: 1rem; }
+.clients { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-bottom: 0.7rem; }
+.clients button { border-radius: var(--radius-pill); padding: 0.3rem 0.8rem; font-size: 13px; border-color: var(--line); background: transparent; color: var(--ink-muted); }
+.clients button.active { border-color: var(--ink); color: var(--ink); background: var(--surface-100); }
+.guide { border: 1px solid var(--line); border-radius: var(--radius-md); padding: 0.8rem 1rem; }
+.steps { margin: 0 0 0.6rem; padding-left: 1.2rem; display: grid; gap: 0.25rem; font-size: 14px; }
+.where { font: 500 12px/1.3 var(--font-mono); color: var(--ink-subtle); margin-bottom: 0.4rem; }
+.note { font-size: 13px; margin: 0.6rem 0 0; }
 table { width: 100%; border-collapse: collapse; display: block; overflow-x: auto; }
 th { font: 500 12px/1.3 var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); background: var(--surface-2); }
 th, td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); white-space: nowrap; }

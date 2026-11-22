@@ -109,7 +109,7 @@ claude mcp add --transport http slidango https://slides.example.com/mcp \
 
 > *“Read the Q4 deck and tighten slide 3 to three bullets.”*
 
-The change shows up in the editor as a suggestion, marked with the client's name, and someone on the team applies it. Create the token in **Account → API tokens**; the dialog hands you this snippet ready to paste. Tools, scopes and limits are in the [self-hosting guide](docs/self-hosting.md#api-tokens-and-mcp).
+The change shows up in the editor as a suggestion, marked with the client's name, and someone on the team applies it. Create the token in **Account → API tokens**; the dialog hands you a ready-to-paste snippet for Claude Code, Claude Desktop, Cursor, VS Code, pi, VibePod and others ([all clients](docs/mcp-clients.md)). Tools, scopes and limits are in the [self-hosting guide](docs/self-hosting.md#api-tokens-and-mcp).
 
 <br>
 

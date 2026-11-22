@@ -72,7 +72,7 @@ Admins can do everything and see every deck. Decks you can't see answer `404`. C
 
 Everyone creates personal tokens in **Account → API tokens**: *Read only* or *Read and suggest changes*, optionally expiring. A token (`sld_…`) is shown once and stored as a SHA-256 hash. It never does more than its owner, never admin tasks, and stops working the moment it is revoked or its owner is disabled.
 
-MCP clients talk to `https://<APP_DOMAIN>/mcp` (Streamable HTTP, stateless):
+MCP clients talk to `https://<APP_DOMAIN>/mcp` (Streamable HTTP, stateless). Setup for Claude Code, Claude Desktop, Cursor, VS Code, pi, VibePod and others: [`mcp-clients.md`](mcp-clients.md). Quick example:
 
 ```bash
 claude mcp add --transport http slidango https://slides.example.com/mcp \

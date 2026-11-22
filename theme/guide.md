@@ -8,7 +8,7 @@ Warm paper, bold Geist headlines with one italic punchline, a single tango accen
 - **Bullets:** three to five per slide, each at most one line. Start with the point, not with filler.
 - **Eyebrow:** optional `eyebrow:` in the frontmatter adds a small label above the content (e.g. `Q4 · Platform`).
 - **Speaker notes:** put them in an HTML comment at the end of the slide: `<!-- … -->`.
-- **Code:** fenced code blocks render dark on the paper slide. Keep them short.
+- **Code:** fenced code blocks render as a card that follows light and dark. Keep them short.
 - No emojis, no exclamation marks, no superlatives.
 - **Light and dark:** by default a deck follows the viewer: in Slidango's preview it matches the app theme, when presenting the presenter's setting. To fix a deck to one variant for everyone (preview, presenting, exports), set `colorSchema: light` or `colorSchema: dark` in the deck settings (slide 1).
 
@@ -22,7 +22,7 @@ colorSchema: dark
 ## Layouts
 
 ### cover
-Title slide on a dot grid. `#` title (with one italic punchline), one sentence below. Optional `eyebrow`, `author`, `date`.
+Title slide with two soft glows, as on slidango.com. `#` title (with one italic punchline), one sentence below that renders as a large Instrument Serif line in tango. Optional `eyebrow`; `author` and `date` appear in the footer row next to the page number.
 
 ```md
 ---

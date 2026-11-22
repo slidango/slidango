@@ -73,7 +73,7 @@ layout: two-cols
 eyebrow: Example
 ---
 
-# Code reads *best* dark
+# Code, *on paper*
 
 ```ts
 export function onboard(team: Team) {

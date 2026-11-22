@@ -13,8 +13,10 @@
   --sl-line: #e4e0d8;
   --sl-tango: #c93a22;
   --sl-ai: #237570;
-  --sl-code-bg: #16181d;
-  --sl-code-ink: #e8eaed;
+  --sl-code-bg: #fbfaf7;
+  --sl-code-ink: #16181d;
+  --sl-glow-a: rgba(201, 58, 34, 0.22);
+  --sl-glow-b: rgba(35, 117, 112, 0.14);
   --slidev-theme-primary: var(--sl-tango);
   --slidev-slide-container-background: var(--sl-paper);
 }
@@ -32,9 +34,9 @@ html.dark {
   --sl-ai: #62b6b3;
   --sl-code-bg: #1a1d24;
   --sl-code-ink: #e8eaed;
+  --sl-glow-a: rgba(255, 122, 92, 0.55);
+  --sl-glow-b: rgba(98, 182, 179, 0.22);
 }
-html.dark .slidev-layout pre,
-html.dark .slidev-layout .slidev-code { border: 1px solid var(--sl-line); }
 
 .slidev-layout {
   height: 100%;
@@ -101,9 +103,9 @@ html.dark .slidev-layout .slidev-code { border: 1px solid var(--sl-line); }
 .slidev-layout th { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; text-align: left; color: var(--sl-muted); border-bottom: 1px solid var(--sl-ink); padding: 0.5rem 0.7rem; }
 .slidev-layout td { border-bottom: 1px solid var(--sl-line); padding: 0.5rem 0.7rem; }
 
-/* Code is dark in both themes: code left, result right. */
+/* Code follows the deck's variant: a light card on paper, a dark card in dark mode. */
 .slidev-layout pre,
-.slidev-layout .slidev-code { background: var(--sl-code-bg) !important; color: var(--sl-code-ink); border-radius: 10px; padding: 1rem 1.2rem !important; font-size: 0.82rem; line-height: 1.6; }
+.slidev-layout .slidev-code { background: var(--sl-code-bg) !important; color: var(--sl-code-ink); border: 1px solid var(--sl-line); border-radius: 10px; padding: 1rem 1.2rem !important; font-size: 0.82rem; line-height: 1.6; }
 .slidev-layout code { font-family: 'JetBrains Mono', monospace; font-variant-ligatures: none; }
 .slidev-layout :not(pre) > code { font-size: 0.86em; background: var(--sl-card); border: 1px solid var(--sl-line); padding: 0.05em 0.35em; border-radius: 6px; }
 

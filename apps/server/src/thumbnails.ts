@@ -85,6 +85,7 @@ export class Thumbnails {
     const browser = await this.launch()
     if (!browser) return
     await mkdir(this.opts.dir, { recursive: true })
+    const rendered: [tmp: string, target: string][] = []
     for (const colorScheme of SCHEMES) {
       // A fresh context per scheme: Slidev remembers the scheme in localStorage.
       const context = await browser.newContext({ viewport: { width: 960, height: 540 }, colorScheme })
@@ -97,11 +98,15 @@ export class Thumbnails {
         const target = this.file(deckId, colorScheme)
         const tmp = `${target}.tmp`
         await page.screenshot({ path: tmp, type: 'jpeg', quality: 82 })
-        await rename(tmp, target)
+        rendered.push([tmp, target])
       } finally {
         await context.close()
       }
     }
+    // version() (and with it the overview's thumbnailAt) keys on the light image, so it goes in
+    // last: once a client sees a version, both schemes exist. Otherwise a dark-mode overview can
+    // ask for the dark image before it is written, get a 404 and drop the <img>.
+    for (const [tmp, target] of rendered.reverse()) await rename(tmp, target)
     this.opts.log.info({ deckId }, 'thumbnail updated')
   }
 

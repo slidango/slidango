@@ -82,6 +82,8 @@ export async function buildApp(config: Config, db: Db) {
     pnpm: config.pnpm,
     installTimeoutMs: 10 * 60_000,
   })
+  await themes.migrateDirs()
+  await themes.ensureBuiltin()
   const previewHosts = new PreviewHosts(config.previewUrl)
   const previewProxy = createPreviewProxy()
   const runner = new Runner({
@@ -104,8 +106,8 @@ export async function buildApp(config: Config, db: Db) {
     runtimeModules: (version) => (version ? themes.runtimeModules(version) : config.builtinRuntime),
   })
 
-  async function preview(deck: { id: string; slug: string; themeVersion: string | null }): Promise<Preview> {
-    const status = await runner.ensure(deck.id, deck.themeVersion)
+  async function preview(deck: { id: string; slug: string; themeId: string | null }): Promise<Preview> {
+    const status = await runner.ensure(deck.id, deck.themeId)
     return { ...status, url: previewHosts.url(deck.slug) }
   }
 
@@ -113,7 +115,7 @@ export async function buildApp(config: Config, db: Db) {
   async function previewTarget(
     host: string | undefined,
     headers: Parameters<Users['fromHeaders']>[0],
-  ): Promise<null | { error: 401 | 404 | 500 } | { deck: { id: string; themeVersion: string | null }; origin: string | null }> {
+  ): Promise<null | { error: 401 | 404 | 500 } | { deck: { id: string; themeId: string | null }; origin: string | null }> {
     const slug = previewHosts.slugFromHost(host)
     if (!slug) return null
     const caller = await users.resolve(headers)
@@ -149,7 +151,7 @@ export async function buildApp(config: Config, db: Db) {
       }
       if ('error' in target) return reply.code(target.error).type('text/plain').send('No access.')
       if (target.origin === null) {
-        void runner.ensure(target.deck.id, target.deck.themeVersion)
+        void runner.ensure(target.deck.id, target.deck.themeId)
         return reply.code(503).header('retry-after', '1').type('text/html').send(STARTING_PAGE)
       }
       reply.hijack()
@@ -211,18 +213,30 @@ export async function buildApp(config: Config, db: Db) {
     (await decks.list(req.auth!, req.query.archived === 'true')).map(withPreview),
   )
 
+  async function readyTheme(id: string) {
+    const theme = await themes.get(id)
+    if (!theme || theme.status !== 'ready') throw app.httpErrors.notFound('Template not available')
+    return theme
+  }
+
   /** Creates a deck owned by `user`: template content, Yjs state and a first version. */
   async function createDeck(input: CreateDeck, user: User): Promise<Deck> {
-    const theme = await themes.defaultTheme()
+    // An explicit choice wins (null: Slidev's default theme); otherwise the default template.
+    const theme =
+      input.themeId === null
+        ? null
+        : input.themeId
+          ? await readyTheme(input.themeId)
+          : await themes.defaultTheme()
     let content: string | undefined
     if (theme) {
       content =
-        (input.mode === 'starter' ? await themes.starter(theme.version, theme.name, input.title) : null) ??
+        (input.mode === 'starter' ? await themes.starter(theme.id, theme.name, input.title) : null) ??
         setHeadmatter(initialSlides(input.title), { theme: theme.name })
     }
     // "Mit Assistent" starts empty (headmatter only); the briefing replaces the preview until the draft.
     if (input.mode === 'assistant') content = headmatterOf(content ?? initialSlides(input.title))
-    const deck = await decks.create(input, user.id, { themeVersion: theme?.version ?? null, content })
+    const deck = await decks.create(input, user.id, { themeId: theme?.id ?? null, content })
     await collab.initDocument(deck.id, await decks.readSlides(deck.id))
     await versions.commit(deck.id, 'Deck created', user)
     return deck
@@ -333,18 +347,18 @@ export async function buildApp(config: Config, db: Db) {
 
   app.get('/api/themes', async () => (await themes.list()).filter((t) => t.status === 'ready'))
 
+  /** Switches a deck to another template or another version of its template. */
   app.post<{ Params: { id: string } }>('/api/decks/:id/theme', async (req) => {
     const deck = await loadDeck(req, 'manage')
-    const { version } = z.object({ version: themeVersionSchema }).parse(req.body)
-    const theme = await themes.get(version)
-    if (!theme || theme.status !== 'ready') throw app.httpErrors.notFound('Template version not available')
-    if (deck.themeVersion === version) return toDeck(deck, req.auth!)
+    const { themeId } = z.object({ themeId: z.string().max(300) }).parse(req.body)
+    const theme = await readyTheme(themeId)
+    if (deck.themeId === theme.id) return toDeck(deck, req.auth!)
     await collab.flushDeck(deck.id)
     const current = await decks.readSlides(deck.id)
     await collab.replaceContent(deck.id, setHeadmatter(current, { theme: theme.name }), 'theme')
-    const updated = await decks.update(deck.id, { themeVersion: version })
-    await runner.restart(deck.id, version)
-    await versions.commit(deck.id, `Template updated to ${version}`, req.user, { allowEmpty: true })
+    const updated = await decks.update(deck.id, { themeId: theme.id })
+    await runner.restart(deck.id, theme.id)
+    await versions.commit(deck.id, `Template: ${theme.label} ${theme.version}`, req.user, { allowEmpty: true })
     return updated
   })
 
@@ -368,12 +382,13 @@ export async function buildApp(config: Config, db: Db) {
       return f && !Array.isArray(f) && f.type === 'field' ? String(f.value) : ''
     }
     try {
-      const version = themeVersionSchema.parse(field('version'))
+      // Optional: without a version the package.json version is used.
+      const version = field('version').trim() ? themeVersionSchema.parse(field('version')) : undefined
       const { theme, installed } = await themes.upload(
         { version, changelog: field('changelog').slice(0, 5000), filename: file.filename, data },
         req.user!.id,
       )
-      installed.catch((err) => req.log.error({ err, version }, 'theme install crashed'))
+      installed.catch((err) => req.log.error({ err, id: theme.id }, 'theme install crashed'))
       return reply.code(202).send(theme)
     } catch (err) {
       if (err instanceof ThemeError) throw app.httpErrors.badRequest(err.message)
@@ -381,10 +396,10 @@ export async function buildApp(config: Config, db: Db) {
     }
   })
 
-  app.put<{ Params: { version: string } }>('/api/admin/themes/:version/default', async (req) => {
+  app.put<{ Params: { id: string } }>('/api/admin/themes/:id/default', async (req) => {
     requireAdmin(req)
     try {
-      await themes.setDefault(req.params.version)
+      await themes.setDefault(req.params.id)
     } catch (err) {
       if (err instanceof ThemeError) throw app.httpErrors.badRequest(err.message)
       throw err
@@ -398,7 +413,7 @@ export async function buildApp(config: Config, db: Db) {
   })
 
   registerLlmRoutes(app, { db, agent, llm, decks, collab, versions, users, loadDeck })
-  registerMcpRoutes(app, { agent, decks, collab, versions, previewHosts, createDeck })
+  registerMcpRoutes(app, { agent, decks, collab, versions, previewHosts, createDeck, themes })
 
   app.get('/collab', { websocket: true }, (socket, req) => {
     const request = new Request(`http://${req.headers.host ?? 'localhost'}${req.url}`, {

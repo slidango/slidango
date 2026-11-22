@@ -249,7 +249,7 @@ export class Agent {
       themes: Themes
       collab: Collab
       versions: Versions
-      runtimeModules: (themeVersion: string | null) => string
+      runtimeModules: (themeId: string | null) => string
     },
   ) {}
 
@@ -260,10 +260,10 @@ export class Agent {
 
   private async deckContext(deckId: string) {
     const deck = (await this.deps.decks.get(deckId))!
-    const theme = deck.themeVersion ? await this.deps.themes.get(deck.themeVersion) : null
+    const theme = deck.themeId ? await this.deps.themes.get(deck.themeId) : null
     const markdown = await this.deps.collab.readContent(deckId)
-    const layouts = await availableLayouts(this.deps.runtimeModules(deck.themeVersion), theme?.name ?? null)
-    const guide = (deck.themeVersion && (await this.deps.themes.guide(deck.themeVersion))) || '(Slidev-Standard-Theme, kein Leitfaden)'
+    const layouts = await availableLayouts(this.deps.runtimeModules(deck.themeId), theme?.name ?? null)
+    const guide = (deck.themeId && (await this.deps.themes.guide(deck.themeId))) || '(Slidev-Standard-Theme, kein Leitfaden)'
     const briefing = await this.briefing(deckId)
     const slidev = await prompt('slidev', { layouts: layouts.join(', ') })
     return { deck, markdown, slides: parseDeck(markdown), layouts, guide, briefing, slidev }

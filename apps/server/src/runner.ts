@@ -13,7 +13,7 @@ export interface RunnerOptions {
   /** Directory of a deck. */
   deckDir: (deckId: string) => string
   /** node_modules directory of the Slidev runtime for a theme version (null = builtin). */
-  runtimeModules: (themeVersion: string | null) => string
+  runtimeModules: (themeId: string | null) => string
   /** Live collab connections; a deck with connections is never idle. */
   connectionCount: (deckId: string) => number
   log: { info(obj: object, msg: string): void; warn(obj: object, msg: string): void }
@@ -21,7 +21,7 @@ export interface RunnerOptions {
 
 interface Instance {
   deckId: string
-  themeVersion: string | null
+  themeId: string | null
   port: number
   /** Loopback address Slidev actually listens on (its `localhost` resolves per system). */
   origin: string
@@ -48,9 +48,9 @@ export class Runner {
   }
 
   /** Ensures a running instance; resolves once it serves HTTP (or failed). */
-  async ensure(deckId: string, themeVersion: string | null): Promise<PreviewStatus> {
+  async ensure(deckId: string, themeId: string | null): Promise<PreviewStatus> {
     let instance = this.instances.get(deckId)
-    if (instance && instance.themeVersion !== themeVersion) {
+    if (instance && instance.themeId !== themeId) {
       await this.stop(deckId)
       instance = undefined
     }
@@ -62,7 +62,7 @@ export class Runner {
       // Concurrent callers (two editors opening the deck) share one start.
       let pending = this.pendingStarts.get(deckId)
       if (!pending) {
-        pending = this.start(deckId, themeVersion).finally(() => this.pendingStarts.delete(deckId))
+        pending = this.start(deckId, themeId).finally(() => this.pendingStarts.delete(deckId))
         this.pendingStarts.set(deckId, pending)
       }
       instance = await pending
@@ -89,17 +89,17 @@ export class Runner {
   list() {
     return [...this.instances.values()].map((i) => ({
       deckId: i.deckId,
-      themeVersion: i.themeVersion,
+      themeId: i.themeId,
       port: i.port,
       status: i.status,
       lastActive: new Date(i.lastActive).toISOString(),
     }))
   }
 
-  async restart(deckId: string, themeVersion: string | null) {
+  async restart(deckId: string, themeId: string | null) {
     if (!this.instances.has(deckId)) return
     await this.stop(deckId)
-    await this.ensure(deckId, themeVersion)
+    await this.ensure(deckId, themeId)
   }
 
   async stop(deckId: string) {
@@ -116,17 +116,17 @@ export class Runner {
   }
 
   /** Links the deck to its runtime without starting a preview. */
-  prepare(deckId: string, themeVersion: string | null) {
-    return linkModules(this.opts.deckDir(deckId), this.opts.runtimeModules(themeVersion))
+  prepare(deckId: string, themeId: string | null) {
+    return linkModules(this.opts.deckDir(deckId), this.opts.runtimeModules(themeId))
   }
 
-  private async start(deckId: string, themeVersion: string | null): Promise<Instance> {
+  private async start(deckId: string, themeId: string | null): Promise<Instance> {
     await this.makeRoom()
-    await this.prepare(deckId, themeVersion)
+    await this.prepare(deckId, themeId)
     const port = await this.freePort()
     const instance: Instance = {
       deckId,
-      themeVersion,
+      themeId,
       port,
       origin: '',
       status: 'starting',

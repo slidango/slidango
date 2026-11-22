@@ -17,7 +17,7 @@ export function toDeck(row: DeckRow | DeckWithRole, caller?: User | AuthContext)
     slug: row.slug,
     title: row.title,
     ownerId: row.ownerId,
-    themeVersion: row.themeVersion,
+    themeId: row.themeId,
     access: row.access,
     archived: row.archived,
     ...(role !== undefined ? { role } : {}),
@@ -141,13 +141,13 @@ export class Decks {
   async create(
     input: CreateDeck,
     ownerId: string,
-    opts: { themeVersion?: string | null; content?: string } = {},
+    opts: { themeId?: string | null; content?: string } = {},
   ): Promise<Deck> {
     const slug = await this.uniqueSlug(slugify(input.title))
     const row = await this.db.transaction(async (tx) => {
       const [deck] = await tx
         .insert(schema.decks)
-        .values({ slug, title: input.title, ownerId, themeVersion: opts.themeVersion ?? null })
+        .values({ slug, title: input.title, ownerId, themeId: opts.themeId ?? null })
         .returning()
       await tx.insert(schema.deckMembers).values({ deckId: deck!.id, userId: ownerId, role: 'owner' })
       return deck!
@@ -157,7 +157,7 @@ export class Decks {
     return toDeck({ ...row, role: 'owner' }, { id: ownerId, email: '', name: '', isAdmin: false, autoApply: false })
   }
 
-  async update(id: string, patch: { title?: string; archived?: boolean; themeVersion?: string | null }): Promise<Deck | null> {
+  async update(id: string, patch: { title?: string; archived?: boolean; themeId?: string | null }): Promise<Deck | null> {
     const [row] = await this.db
       .update(schema.decks)
       .set({ ...patch, updatedAt: new Date() })

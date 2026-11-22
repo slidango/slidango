@@ -1,6 +1,8 @@
 # Template packages
 
-A template is a Slidev theme packed as `.zip` or `.tgz` (50 MB at most), for example with `npm pack`. Admins upload it in **Settings → Templates** with a version and a changelog. Slidango ships its own in [`theme/`](../theme) (`pnpm theme:pack`); use it as a starting point for yours.
+A template is a Slidev theme packed as `.zip` or `.tgz` (50 MB at most), for example with `npm pack`. Admins upload it in **Settings → Templates** with an optional version and a changelog. The package name identifies the template: a new name adds a template, the same name adds a version of it. Several templates live side by side; people pick one when they create a deck and switch in **⋯ → Template**.
+
+The Slidango template in [`theme/`](../theme) ships with the app and needs no upload. Use it as a starting point for yours.
 
 ```
 package.json   Required: name, version. Optionally @slidev/cli as a dependency (pins the Slidev version)
@@ -17,6 +19,7 @@ fonts/, public/  Fonts, logos, images
 ```json
 {
   "name": "slidev-theme-acme",
+  "displayName": "Acme",
   "version": "1.4.0",
   "keywords": ["slidev-theme", "slidev"],
   "dependencies": { "@slidev/cli": "53.0.0" },
@@ -26,6 +29,8 @@ fonts/, public/  Fonts, logos, images
   }
 }
 ```
+
+`displayName` is what people see in Slidango (otherwise it is derived from the name: `slidev-theme-acme-corp` → "Acme Corp").
 
 ## guide.md
 

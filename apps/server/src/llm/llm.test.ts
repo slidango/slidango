@@ -45,7 +45,7 @@ beforeEach(() => {
 })
 
 async function createDeck(title: string, mode = 'empty') {
-  return (await server.app.inject({ method: 'POST', url: '/api/decks', headers: alice, payload: { title, mode } })).json<Deck>()
+  return (await server.app.inject({ method: 'POST', url: '/api/decks', headers: alice, payload: { title, mode, themeId: null } })).json<Deck>()
 }
 
 /** POSTs to an SSE endpoint and collects all events. */

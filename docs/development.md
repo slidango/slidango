@@ -4,7 +4,7 @@ Node 22 and pnpm 10.
 
 ```bash
 pnpm install
-pnpm --dir apps/server/runtime install --ignore-workspace   # Slidev for the previews
+pnpm --dir apps/server/runtime install --ignore-workspace   # Slidev and the Slidango template for the previews (again after changing theme/)
 DEV_USER_EMAIL=me@example.com ADMIN_EMAILS=me@example.com pnpm dev
 ```
 

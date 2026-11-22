@@ -61,7 +61,8 @@ export const decks = pgTable('decks', {
   ownerId: uuid('owner_id')
     .notNull()
     .references(() => users.id),
-  themeVersion: text('theme_version'),
+  /** Installed template (themes.id) the deck uses; null for Slidev's default theme. */
+  themeId: text('theme_id'),
   /** Who sees the deck besides its members: everyone may edit, everyone may view, or members only. */
   access: text('access', { enum: ['team-edit', 'team-view', 'members'] }).notNull().default('team-edit'),
   archived: boolean('archived').notNull().default(false),
@@ -91,14 +92,21 @@ export const yjsDocuments = pgTable('yjs_documents', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
+/** Installed template versions. A template is all rows with the same package name. */
 export const themes = pgTable('themes', {
-  version: text('version').primaryKey(),
+  /** `<package name>@<version>`, unique across all templates. */
+  id: text('id').primaryKey(),
   /** npm package name of the theme, used as `theme:` in the headmatter. */
   name: text('name').notNull(),
+  /** Display name, e.g. "Slidango" (package.json `displayName`, else derived from the name). */
+  label: text('label').notNull().default(''),
+  version: text('version').notNull(),
   changelog: text('changelog').notNull().default(''),
   status: text('status', { enum: ['installing', 'ready', 'failed'] }).notNull(),
   log: text('log').notNull().default(''),
   isDefault: boolean('is_default').notNull().default(false),
+  /** Shipped with Slidango (lives in the built-in runtime, cannot be uploaded or removed). */
+  builtin: boolean('builtin').notNull().default(false),
   uploadedBy: uuid('uploaded_by').references(() => users.id),
   uploadedAt: timestamp('uploaded_at', { withTimezone: true }).notNull().defaultNow(),
 })

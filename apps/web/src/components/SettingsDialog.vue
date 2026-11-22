@@ -3,6 +3,7 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import type { Theme } from '@slidango/shared'
 import { api, type RunningPreview } from '../api'
+import { groupTemplates } from '../templates'
 import PeoplePanel from './PeoplePanel.vue'
 
 const emit = defineEmits<{ close: [] }>()
@@ -101,31 +102,38 @@ onMounted(() => {
         <PeoplePanel v-if="tab === 'people'" />
         <template v-else-if="tab === 'templates'">
           <section>
-            <h2>Template versions</h2>
+            <h2>Templates</h2>
+            <p class="muted">New decks get the default template unless someone picks another one. Every deck can switch in ⋯ → Template.</p>
             <table v-if="themes.length">
               <thead>
-                <tr><th>Version</th><th>Package</th><th>Status</th><th>Uploaded</th><th /></tr>
+                <tr><th>Version</th><th>Status</th><th>Uploaded</th><th /></tr>
               </thead>
-              <tbody>
-                <template v-for="theme in themes" :key="theme.version">
+              <tbody v-for="group in groupTemplates(themes)" :key="group.name">
+                <tr class="group">
+                  <td colspan="4">
+                    <strong>{{ group.label }}</strong>
+                    <span v-if="group.builtin" class="badge">built-in</span>
+                    <code class="muted">{{ group.name }}</code>
+                  </td>
+                </tr>
+                <template v-for="theme in group.versions" :key="theme.id">
                   <tr>
                     <td>
-                      <strong>{{ theme.version }}</strong>
-                      <span v-if="theme.isDefault" class="badge">Default</span>
+                      <span class="version">{{ theme.version }}</span>
+                      <span v-if="theme.isDefault" class="badge">default</span>
                       <div v-if="theme.changelog" class="muted changelog">{{ theme.changelog }}</div>
                     </td>
-                    <td><code>{{ theme.name }}</code></td>
                     <td :class="theme.status">
                       {{ { installing: 'Installing …', ready: 'Ready', failed: 'Failed' }[theme.status] }}
                     </td>
-                    <td class="muted">{{ dateFormat.format(new Date(theme.uploadedAt)) }}</td>
+                    <td class="muted">{{ theme.builtin ? 'Shipped with Slidango' : dateFormat.format(new Date(theme.uploadedAt)) }}</td>
                     <td class="actions">
-                      <button v-if="theme.status === 'ready' && !theme.isDefault" @click="makeDefault(theme.version)">Make default</button>
-                      <button v-if="theme.log" @click="openLog = openLog === theme.version ? null : theme.version">Log</button>
+                      <button v-if="theme.status === 'ready' && !theme.isDefault" @click="makeDefault(theme.id)">Make default</button>
+                      <button v-if="theme.log" @click="openLog = openLog === theme.id ? null : theme.id">Log</button>
                     </td>
                   </tr>
-                  <tr v-if="openLog === theme.version">
-                    <td colspan="5"><pre>{{ theme.log }}</pre></td>
+                  <tr v-if="openLog === theme.id">
+                    <td colspan="4"><pre>{{ theme.log }}</pre></td>
                   </tr>
                 </template>
               </tbody>
@@ -139,12 +147,13 @@ onMounted(() => {
               A Slidev theme as .zip or .tgz (max. 50 MB) with <code>package.json</code>, <code>guide.md</code> and optionally
               <code>starter.md</code>. After the upload it is installed and tested with the starter deck.
             </p>
+            <p class="muted">A new package name adds a template; the same name adds a version of it.</p>
             <form class="upload" @submit.prevent="upload">
-              <input v-model="version" placeholder="Version, e.g. 1.4.0" required pattern="[0-9A-Za-z][0-9A-Za-z._\-]{0,63}" />
+              <input v-model="version" placeholder="Version (optional, else from package.json)" pattern="[0-9A-Za-z][0-9A-Za-z._+\-]{0,63}" />
               <textarea v-model="changelog" placeholder="Changelog" rows="3" />
               <input type="file" accept=".zip,.tgz,.tar.gz" required @change="file = ($event.target as HTMLInputElement).files?.[0] ?? null" />
               <div>
-                <button class="primary" type="submit" :disabled="uploading || !file || !version">
+                <button class="primary" type="submit" :disabled="uploading || !file">
                   {{ uploading ? 'Uploading …' : 'Upload' }}
                 </button>
                 <span v-if="error" class="error">{{ error }}</span>
@@ -181,7 +190,7 @@ onMounted(() => {
               <tbody>
                 <tr v-for="p in previews" :key="p.deckId">
                   <td><RouterLink :to="`/decks/${p.deckId}`">{{ p.deckId.slice(0, 8) }}</RouterLink></td>
-                  <td>{{ p.themeVersion ?? 'Default' }}</td>
+                  <td>{{ p.themeId ?? 'Default' }}</td>
                   <td>{{ p.port }}</td>
                   <td>{{ p.status }}</td>
                   <td class="muted">{{ dateFormat.format(new Date(p.lastActive)) }}</td>
@@ -215,11 +224,15 @@ h2 { font-size: 1.05rem; margin: 0.6rem 0 0.3rem; }
 .saved { margin-left: 0.5rem; }
 textarea { font: inherit; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); padding: 0.4rem 0.6rem; }
 .error { color: var(--danger); margin-left: 0.5rem; }
-table { width: 100%; border-collapse: collapse; display: block; overflow-x: auto; }
+section { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
 th { font: 500 12px/1.3 var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); background: var(--surface-2); }
 th, td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); vertical-align: top; }
 .badge { margin-left: 0.4rem; }
 .changelog { white-space: pre-wrap; font-size: 0.85rem; }
+tr.group td { background: var(--surface-100); padding-top: 0.6rem; }
+tr.group code { font-size: 11.5px; margin-left: 0.4rem; }
+.version { font: 500 13px/1.3 var(--font-mono); }
 .ready { color: var(--success); }
 .failed { color: var(--danger); }
 .actions { display: flex; gap: 0.4rem; }

@@ -36,6 +36,13 @@
       "when": 1795112257600,
       "tag": "0004_accounts_access_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1795365422183,
+      "tag": "0005_multiple_templates",
+      "breakpoints": true
     }
   ]
 }

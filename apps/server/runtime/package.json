@@ -1,11 +1,12 @@
 {
   "name": "slidev-runtime-builtin",
   "private": true,
-  "description": "Slidev runtime for decks without an uploaded template. Installed separately from the workspace.",
+  "description": "Slidev runtime shipped with Slidango: Slidev, its default theme and the Slidango template. Installed separately from the workspace.",
   "packageManager": "pnpm@10.34.9",
   "dependencies": {
     "@slidev/cli": "53.0.0",
-    "@slidev/theme-default": "0.25.0"
+    "@slidev/theme-default": "0.25.0",
+    "slidev-theme-slidango": "file:../../../theme"
   },
   "pnpm": {
     "overrides": {

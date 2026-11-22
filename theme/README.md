@@ -4,10 +4,12 @@ The Slidango look for [Slidev](https://sli.dev): warm paper, bold Geist headline
 
 Layouts: `cover`, `default`, `section`, `two-cols`, `center`, `statement`, `fact`, `quote`, `end`. Writing rules and examples: [`guide.md`](guide.md). Every layout in one deck: [`starter.md`](starter.md).
 
-## Use it in Slidango
+## In Slidango
+
+The template ships with the app (it is part of the built-in Slidev runtime in `apps/server/runtime`) and is the default template until an admin picks another one. After changing files here, reinstall the runtime so the app picks them up:
 
 ```bash
-pnpm theme:pack   # → theme/dist/slidev-theme-slidango-1.0.0.tgz
+pnpm --dir apps/server/runtime install --ignore-workspace
 ```
 
-Upload the file in **Settings → Templates** with version `1.0.0`, wait for *Ready*, then *Make default*. New decks use it; existing decks switch in **⋯ → Template**.
+`pnpm theme:pack` builds an uploadable package (`theme/dist/slidev-theme-slidango-<version>.tgz`) if you want to ship a newer version to an existing installation without updating the app.

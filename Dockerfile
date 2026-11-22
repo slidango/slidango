@@ -13,6 +13,8 @@ RUN pnpm install --frozen-lockfile
 # Slidev runtime for decks without an uploaded template; separate from the workspace.
 FROM pnpm AS runtime
 WORKDIR /runtime
+# The Slidango template ships in this runtime (file:../../../theme resolves to /theme).
+COPY theme /theme
 COPY apps/server/runtime/package.json apps/server/runtime/pnpm-lock.yaml ./
 RUN PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 pnpm install --ignore-workspace --frozen-lockfile --prod
 

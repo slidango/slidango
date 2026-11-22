@@ -116,7 +116,7 @@ In `oidc` mode, Caddy lets requests with `Authorization: Bearer sld_…` to `/mc
 | `RUNNER_MAX_INSTANCES` | `15` | Slidev processes at most. Measure RAM per process before you size the host. |
 | `RUNNER_IDLE_MINUTES` | `10` | Stop a preview without editors or open presentations |
 
-**Templates** are Slidev themes uploaded as `.zip` or `.tgz` in **Settings → Templates**. Slidango ships its own in [`theme/`](../theme): build it with `pnpm theme:pack` and upload `theme/dist/slidev-theme-slidango-1.0.0.tgz` as version `1.0.0`. Templates are installed without install scripts, smoke-tested with their starter deck, then set as default. Existing decks switch in **⋯ → Template**, which shows the changelog. Format: [`template.md`](template.md).
+**Templates** are Slidev themes. The Slidango template ships with the app and is the default until an admin picks another one. More templates, and new versions of a template, are uploaded as `.zip` or `.tgz` in **Settings → Templates**: a new package name adds a template, the same name adds a version (the version comes from `package.json` unless you type one). New decks pick a template when they are created; existing decks switch template or version in **⋯ → Template**. Templates are installed without install scripts, smoke-tested with their starter deck, then set as default. Format: [`template.md`](template.md).
 
 ## Backups
 

@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import type { Deck, DeckMode } from '@slidango/shared'
+import type { Deck, DeckMode, Theme } from '@slidango/shared'
 import { api } from '../api'
+import { groupTemplates, templateLabel } from '../templates'
 import BrandHeader from '../components/BrandHeader.vue'
 import MenuButton from '../components/MenuButton.vue'
 
@@ -18,7 +19,15 @@ function openCreate() {
 }
 const title = ref('')
 const mode = ref<DeckMode>('empty')
-const hasTemplate = ref(false)
+const themes = ref<Theme[]>([])
+/** Picked template (latest version of it); '' = Slidev's default theme without a template. */
+const themeId = ref('')
+/** One choice per template: the default version for the default template, else the newest ready one. */
+const templates = computed(() =>
+  groupTemplates(themes.value)
+    .map((g) => ({ ...g, pick: g.versions.find((v) => v.isDefault && v.status === 'ready') ?? g.latest }))
+    .filter((g) => g.pick),
+)
 const llmConfigured = ref(false)
 const error = ref<string | null>(null)
 const filter = ref('')
@@ -30,7 +39,7 @@ async function load() {
 async function create() {
   error.value = null
   try {
-    const deck = await api.createDeck({ title: title.value, mode: mode.value })
+    const deck = await api.createDeck({ title: title.value, mode: mode.value, themeId: themeId.value || null })
     await router.push(`/decks/${deck.id}`)
   } catch (e) {
     error.value = (e as Error).message
@@ -47,8 +56,9 @@ const visible = () => decks.value.filter((d) => d.title.toLowerCase().includes(f
 
 onMounted(async () => {
   await load()
-  const [themes, llm] = await Promise.all([api.themes(), api.llmStatus()])
-  hasTemplate.value = themes.some((t) => t.isDefault)
+  const [installed, llm] = await Promise.all([api.themes(), api.llmStatus()])
+  themes.value = installed
+  themeId.value = installed.find((t) => t.isDefault && t.status === 'ready')?.id ?? ''
   llmConfigured.value = llm.configured
   if (llm.configured) mode.value = 'assistant'
 })
@@ -62,10 +72,19 @@ onMounted(async () => {
       <h2 id="create-title">New deck</h2>
       <label>Title<input v-model="title" placeholder="Title" autofocus required maxlength="200" /></label>
       <label>
+        Template
+        <select v-model="themeId" aria-label="Template">
+          <option v-for="group in templates" :key="group.name" :value="group.pick!.id">
+            {{ group.label }} · {{ group.pick!.version }}{{ group.pick!.isDefault ? ' · default' : '' }}
+          </option>
+          <option value="">Slidev default (no template)</option>
+        </select>
+      </label>
+      <label>
         Start with
         <select v-model="mode" aria-label="Start with">
           <option value="assistant" :disabled="!llmConfigured">Slidango AI</option>
-          <option value="starter" :disabled="!hasTemplate">The template's starter deck</option>
+          <option value="starter" :disabled="!themeId">The template's starter deck</option>
           <option value="empty">Empty</option>
         </select>
       </label>
@@ -98,7 +117,7 @@ onMounted(async () => {
               <span v-else-if="deck.access === 'team-view'" class="badge" title="Everyone can view, members edit">view only for team</span>
               <span v-if="deck.role === 'viewer' || deck.can?.edit === false" class="badge">you can view</span>
             </td>
-            <td class="muted meta" data-label="Template">{{ deck.themeVersion ?? 'Default' }}</td>
+            <td class="muted meta" data-label="Template">{{ templateLabel(themes, deck.themeId) }}</td>
             <td class="muted meta" data-label="Edited">{{ dateFormat.format(new Date(deck.updatedAt)) }}</td>
             <td class="actions">
               <div>

@@ -9,6 +9,7 @@ import type { DeckWithRole, Decks } from './decks'
 import type { Agent } from './llm/agent'
 import { LlmError } from './llm/agent'
 import type { PreviewHosts } from './preview'
+import type { Themes } from './themes'
 import type { Versions } from './versions'
 
 interface Deps {
@@ -18,6 +19,7 @@ interface Deps {
   versions: Versions
   previewHosts: PreviewHosts
   createDeck: (input: CreateDeck, user: User) => Promise<Deck>
+  themes: Themes
 }
 
 /** How long an MCP client stays visible in a deck after its last call. */
@@ -259,13 +261,35 @@ export function registerMcpRoutes(app: FastifyInstance, deps: Deps) {
       {
         title: 'Create a deck',
         description: 'Creates a new deck you own. "starter" uses the template’s example deck if there is one.',
-        inputSchema: { title: z.string().trim().min(1).max(200), mode: z.enum(['empty', 'starter']).optional() },
+        inputSchema: {
+          title: z.string().trim().min(1).max(200),
+          mode: z.enum(['empty', 'starter']).optional(),
+          template_id: z.string().max(300).optional().describe('From list_templates; omitted: the default template'),
+        },
         annotations: { readOnlyHint: false, destructiveHint: false },
       },
-      async ({ title, mode }) => {
+      async ({ title, mode, template_id }) => {
         if (!writable()) return fail('This token is read-only. Create a token with write scope to create decks.')
-        const deck = await deps.createDeck({ title, mode: mode ?? 'empty' }, ctx.user)
-        return text({ id: deck.id, title: deck.title, previewUrl: deps.previewHosts.url(deck.slug) })
+        try {
+          const deck = await deps.createDeck({ title, mode: mode ?? 'empty', themeId: template_id }, ctx.user)
+          return text({ id: deck.id, title: deck.title, template: deck.themeId, previewUrl: deps.previewHosts.url(deck.slug) })
+        } catch (err) {
+          return fail((err as Error).message)
+        }
+      },
+    )
+
+    server.registerTool(
+      'list_templates',
+      {
+        title: 'List templates',
+        description: 'Templates new decks can use, with their versions. The default one is marked.',
+        inputSchema: {},
+        annotations: { readOnlyHint: true },
+      },
+      async () => {
+        const ready = (await deps.themes.list()).filter((t) => t.status === 'ready')
+        return text(ready.map((t) => ({ id: t.id, template: t.label, version: t.version, default: t.isDefault, builtin: t.builtin })))
       },
     )
 

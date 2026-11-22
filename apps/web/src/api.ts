@@ -35,7 +35,7 @@ export interface LlmState {
 
 export interface RunningPreview {
   deckId: string
-  themeVersion: string | null
+  themeId: string | null
   port: number
   status: string
   lastActive: string
@@ -102,7 +102,7 @@ export const api = {
   saveVersion: (id: string, message: string) => request<Version | null>('POST', `/decks/${id}/versions`, { message }),
   restore: (id: string, sha: string) => request<Version | null>('POST', `/decks/${id}/restore`, { sha }),
   themes: () => request<Theme[]>('GET', '/themes'),
-  setDeckTheme: (id: string, version: string) => request<Deck>('POST', `/decks/${id}/theme`, { version }),
+  setDeckTheme: (id: string, themeId: string) => request<Deck>('POST', `/decks/${id}/theme`, { themeId }),
   updateMe: (patch: { autoApply?: boolean; name?: string }) => request<User>('PATCH', '/me', patch),
   llmStatus: () => request<{ configured: boolean }>('GET', '/llm/status'),
   llmState: (id: string, session: string | null = null) =>
@@ -130,7 +130,7 @@ export const api = {
       form.append('file', file)
       return request<Theme>('POST', '/admin/themes', form)
     },
-    setDefaultTheme: (version: string) => request<Theme[]>('PUT', `/admin/themes/${encodeURIComponent(version)}/default`),
+    setDefaultTheme: (id: string) => request<Theme[]>('PUT', `/admin/themes/${encodeURIComponent(id)}/default`),
     previews: () => request<RunningPreview[]>('GET', '/admin/previews'),
     people: () => request<{ mode: AuthMode; people: Person[]; invites: PendingInvite[] }>('GET', '/admin/people'),
     invite: (email: string, grantAdmin: boolean) => request<InviteLink>('POST', '/admin/invites', { email, grantAdmin }),

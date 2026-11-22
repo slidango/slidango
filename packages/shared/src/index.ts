@@ -6,6 +6,8 @@ export type DeckMode = z.infer<typeof deckModeSchema>
 export const createDeckSchema = z.object({
   title: z.string().trim().min(1).max(200),
   mode: deckModeSchema.default('empty'),
+  /** Installed template (Theme.id); omitted: the default template; null: Slidev's default theme. */
+  themeId: z.string().max(300).nullable().optional(),
 })
 export type CreateDeck = z.infer<typeof createDeckSchema>
 
@@ -26,7 +28,8 @@ export const deckSchema = z.object({
   slug: z.string(),
   title: z.string(),
   ownerId: z.string(),
-  themeVersion: z.string().nullable(),
+  /** Installed template (Theme.id), null for Slidev's default theme. */
+  themeId: z.string().nullable(),
   access: deckAccessSchema,
   archived: z.boolean(),
   /** The requesting user's membership role, if any; set where a user is known. */
@@ -87,15 +90,23 @@ export { setHeadmatter } from './headmatter'
 export const themeVersionSchema = z
   .string()
   .trim()
-  .regex(/^[0-9A-Za-z][0-9A-Za-z._-]{0,63}$/, 'Version: Buchstaben, Ziffern, Punkt, Bindestrich')
+  .regex(/^[0-9A-Za-z][0-9A-Za-z._+-]{0,63}$/, 'Version: letters, digits, dot, dash or plus')
 
+/** One installed version of a template (a Slidev theme package). */
 export interface Theme {
+  /** `<package>@<version>`; decks point to this. */
+  id: string
+  /** Display name of the template, e.g. "Slidango". */
+  label: string
   version: string
+  /** npm package name; all versions of one template share it. */
   name: string
   changelog: string
   status: 'installing' | 'ready' | 'failed'
   log: string
   isDefault: boolean
+  /** Shipped with Slidango. */
+  builtin: boolean
   uploadedAt: string
 }
 export * from './deck'

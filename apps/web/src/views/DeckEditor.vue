@@ -297,7 +297,7 @@ async function insertImages(files: File[]) {
 function onTemplateUpdated(updated: Deck) {
   deck.value = { ...updated, previewUrl: deck.value?.previewUrl }
   drawer.value = null
-  flash(`Template ${updated.themeVersion} aktiv.`)
+  flash('Template switched.')
   preview.value?.restart()
   void loadLayouts()
 }
@@ -440,7 +440,7 @@ const showShortcuts = ref(false)
         <MenuButton label="⋯" title="More actions" class="more">
           <button @click="sharingOpen = true">Share …</button>
           <button @click="drawer = 'versions'">Versions</button>
-          <button v-if="canManage" @click="drawer = 'template'">Template <span class="muted">{{ deck.themeVersion ?? 'Default' }}</span></button>
+          <button v-if="canManage" @click="drawer = 'template'">Template …</button>
           <button v-if="!readOnly" @click="fileInput?.click()">Insert image …</button>
           <hr />
           <button @click="toggleTheme">{{ theme === 'dark' ? 'Light theme' : 'Dark theme' }}</button>

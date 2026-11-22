@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import type { Deck, DeckMode, Theme } from '@slidango/shared'
 import { api } from '../api'
 import { groupTemplates, templateLabel } from '../templates'
 import BrandHeader from '../components/BrandHeader.vue'
 import MenuButton from '../components/MenuButton.vue'
+import { theme } from '../composables/theme'
 
 const router = useRouter()
 const decks = ref<Deck[]>([])
@@ -32,6 +33,29 @@ const llmConfigured = ref(false)
 const error = ref<string | null>(null)
 const filter = ref('')
 
+/** Cards with slide 1 (default) or the compact list; remembered per browser. */
+type View = 'cards' | 'list'
+const VIEW_KEY = 'slidango-deck-view'
+function storedView(): View {
+  try {
+    return localStorage.getItem(VIEW_KEY) === 'list' ? 'list' : 'cards'
+  } catch {
+    return 'cards'
+  }
+}
+const view = ref<View>(storedView())
+watch(view, (value) => {
+  try {
+    localStorage.setItem(VIEW_KEY, value)
+  } catch {
+    /* private mode: the choice lasts for this tab */
+  }
+})
+
+/** Slide 1 in the app's theme; the timestamp busts the cache after each new render. */
+const thumbUrl = (deck: Deck) => `/api/decks/${deck.id}/thumbnail?scheme=${theme.value}&v=${deck.thumbnailAt}`
+const brokenThumbs = ref(new Set<string>())
+
 async function load() {
   decks.value = await api.decks(showArchived.value)
 }
@@ -52,6 +76,7 @@ async function toggleArchive(deck: Deck) {
 }
 
 const dateFormat = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+const shortDate = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 const visible = () => decks.value.filter((d) => d.title.toLowerCase().includes(filter.value.trim().toLowerCase()))
 
 onMounted(async () => {
@@ -100,16 +125,73 @@ onMounted(async () => {
     <div class="filters">
       <input v-model="filter" type="search" placeholder="Search decks" aria-label="Search decks" />
       <label class="muted"><input v-model="showArchived" type="checkbox" @change="load" /> Show archived</label>
+      <div class="view-toggle" role="group" aria-label="View">
+        <button :aria-pressed="view === 'cards'" title="Cards with slide 1" @click="view = 'cards'">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="5.5" height="4.5" rx="1" /><rect x="9" y="2.5" width="5.5" height="4.5" rx="1" /><rect x="1.5" y="9" width="5.5" height="4.5" rx="1" /><rect x="9" y="9" width="5.5" height="4.5" rx="1" /></svg>
+          Cards
+        </button>
+        <button :aria-pressed="view === 'list'" title="Compact list" @click="view = 'list'">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4h12M2 8h12M2 12h12" /></svg>
+          List
+        </button>
+      </div>
       <button class="primary new" @click="openCreate">+ New deck</button>
     </div>
 
-    <div class="table-wrap">
+    <ul v-if="view === 'cards'" class="cards" data-testid="decks">
+      <li v-for="deck in visible()" :key="deck.id" class="card" :class="{ archived: deck.archived }" data-testid="deck-item">
+        <RouterLink :to="`/decks/${deck.id}`" class="thumb" tabindex="-1" aria-hidden="true">
+          <img
+            v-if="deck.thumbnailAt && !brokenThumbs.has(deck.id)"
+            :src="thumbUrl(deck)"
+            alt=""
+            loading="lazy"
+            @error="brokenThumbs.add(deck.id)"
+          />
+          <span v-else class="placeholder"><span>{{ deck.title }}</span></span>
+        </RouterLink>
+        <div class="body">
+          <div class="head">
+            <RouterLink :to="`/decks/${deck.id}`" class="name">{{ deck.title }}</RouterLink>
+            <MenuButton label="⋯" :title="`More actions for ${deck.title}`">
+              <a v-if="deck.previewUrl" :href="`${deck.previewUrl}/presenter/1`" target="_blank" rel="noopener">Presenter view</a>
+              <button v-if="deck.can?.manage" @click="toggleArchive(deck)">{{ deck.archived ? 'Restore' : 'Archive' }}</button>
+              <span v-if="!deck.previewUrl && !deck.can?.manage" class="muted none">No actions</span>
+            </MenuButton>
+          </div>
+          <div class="badges">
+            <span v-if="deck.archived" class="badge">archived</span>
+            <span v-if="deck.access === 'members'" class="badge" title="Only members see this deck">members only</span>
+            <span v-else-if="deck.access === 'team-view'" class="badge" title="Everyone can view, members edit">view only for team</span>
+            <span v-if="deck.role === 'viewer' || deck.can?.edit === false" class="badge">you can view</span>
+          </div>
+          <div class="foot">
+            <span class="meta" :title="`Edited ${dateFormat.format(new Date(deck.updatedAt))} · ${templateLabel(themes, deck.themeId)}`">
+              {{ shortDate.format(new Date(deck.updatedAt)) }} · {{ templateLabel(themes, deck.themeId) }}
+            </span>
+            <a
+              v-if="deck.previewUrl"
+              :href="deck.previewUrl"
+              target="_blank"
+              rel="noopener"
+              class="button present"
+              title="Open only the presentation (new tab)"
+            ><span aria-hidden="true">▶</span> Present</a>
+          </div>
+        </div>
+      </li>
+      <li v-if="visible().length === 0" class="empty muted">
+        {{ decks.length ? 'No matches.' : 'No decks yet. Create the first one with “New deck”.' }}
+      </li>
+    </ul>
+
+    <div v-else class="table-wrap" data-testid="decks">
       <table class="decks">
         <thead>
           <tr><th>Title</th><th>Template</th><th>Edited</th><th class="right">Actions</th></tr>
         </thead>
         <tbody>
-          <tr v-for="deck in visible()" :key="deck.id" :class="{ archived: deck.archived }">
+          <tr v-for="deck in visible()" :key="deck.id" :class="{ archived: deck.archived }" data-testid="deck-item">
             <td class="title">
               <RouterLink :to="`/decks/${deck.id}`">{{ deck.title }}</RouterLink>
               <span v-if="deck.archived" class="badge">archived</span>
@@ -148,7 +230,34 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.new { margin-left: auto; padding: 0.5rem 1.1rem; }
+.new { padding: 0.5rem 1.1rem; }
+.view-toggle { margin-left: auto; display: inline-flex; border: 1px solid var(--border-strong); border-radius: var(--radius-md); padding: 2px; background: var(--surface-card); }
+.view-toggle button { display: inline-flex; align-items: center; gap: 0.35rem; border: none; background: transparent; color: var(--ink-muted); padding: 0.3rem 0.65rem; font-size: 13px; border-radius: calc(var(--radius-md) - 2px); }
+.view-toggle button[aria-pressed='true'] { background: var(--surface-100); color: var(--ink); }
+.view-toggle button:hover { color: var(--ink); }
+.view-toggle svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.4; }
+
+.cards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(15.5rem, 1fr)); gap: 1.1rem; }
+.card { display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; transition: border-color 0.15s var(--ease), box-shadow 0.15s var(--ease), transform 0.15s var(--ease); }
+.card:hover { border-color: var(--border-strong); box-shadow: var(--shadow); transform: translateY(-1px); }
+.thumb { display: block; aspect-ratio: 16 / 9; border-bottom: 1px solid var(--border); background: var(--surface-2); overflow: hidden; }
+.thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
+/* Until slide 1 has been rendered: the title on the dot grid of the editor stage. */
+.placeholder { display: flex; align-items: flex-end; width: 100%; height: 100%; padding: 1rem 1.1rem; box-sizing: border-box; background-image: radial-gradient(var(--line) 1px, transparent 1px); background-size: 14px 14px; }
+.placeholder span { font: 650 19px/1.15 var(--font-sans); letter-spacing: -0.02em; color: var(--ink); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.card.archived .thumb { opacity: 0.55; filter: grayscale(0.6); }
+.body { display: flex; flex-direction: column; gap: 0.35rem; padding: 0.7rem 0.6rem 0.55rem 0.9rem; flex: 1; }
+.head { display: flex; align-items: center; gap: 0.3rem; }
+.head :deep(.menu-button) { display: flex; }
+.name { flex: 1; min-width: 0; font-weight: 600; font-size: 15px; letter-spacing: -0.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 0.3rem; }
+.name:hover { color: var(--tango); }
+.card.archived .name { color: var(--muted); }
+.badges { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.badges:empty { display: none; }
+.foot { display: flex; align-items: center; gap: 0.2rem; margin-top: auto; }
+.foot .meta { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.foot .button.present { padding: 0.25rem 0.55rem; font-size: 13px; }
+.cards .empty { grid-column: 1 / -1; text-align: center; padding: 2.5rem; border: 1px dashed var(--border); border-radius: var(--radius-lg); }
 .create-dialog { border: 1px solid var(--line); padding: 0; border-radius: var(--radius-lg); width: min(28rem, calc(100vw - 2rem)); box-shadow: var(--shadow); background: var(--surface); color: var(--text); }
 .create { display: grid; gap: 0.8rem; padding: 1.25rem 1.5rem; }
 .create h2 { margin: 0; font-size: 20px; letter-spacing: -0.01em; }

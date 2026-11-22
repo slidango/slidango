@@ -26,6 +26,7 @@
     "fflate": "0.8.3",
     "http-proxy": "1.18.1",
     "openai": "7.39.0",
+    "playwright-core": "1.56.1",
     "postgres": "3.4.9",
     "simple-git": "3.36.0",
     "tar": "7.5.22",

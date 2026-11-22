@@ -43,7 +43,7 @@ test('members-only decks are invisible to others until shared, viewers cannot ed
   await expect(share.locator('.option.active')).toContainText('Members only')
 
   await oscar.goto('/')
-  await expect(oscar.locator('table.decks')).not.toContainText('Board Deck')
+  await expect(oscar.getByTestId('decks')).not.toContainText('Board Deck')
   await oscar.goto(`/decks/${deckId}`)
   await expect(oscar.locator('.fatal')).toBeVisible()
 

@@ -15,7 +15,11 @@ const GITIGNORE = 'node_modules\n.slidev\ndist\n*.tmp\n.briefing\n'
 
 /** One Git repository per deck; commits only happen on explicit actions. */
 export class Versions {
-  constructor(private deckDir: (id: string) => string) {}
+  constructor(
+    private deckDir: (id: string) => string,
+    /** Called after every new commit (e.g. to refresh the deck's thumbnail). */
+    private onCommit: (deckId: string) => void = () => {},
+  ) {}
 
   private async repo(deckId: string): Promise<SimpleGit> {
     const dir = this.deckDir(deckId)
@@ -49,6 +53,7 @@ export class Versions {
       ...(author ? { '--author': author } : {}),
       ...(status.isClean() ? { '--allow-empty': null } : {}),
     })
+    this.onCommit(deckId)
     return (await this.list(deckId, 1))[0] ?? null
   }
 

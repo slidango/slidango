@@ -87,6 +87,8 @@ export interface Config {
   /** pnpm binary for installing uploaded templates. */
   pnpm: string
   runner: { maxInstances: number; idleMs: number; portRange: [number, number]; startTimeoutMs: number }
+  /** Slide-1 images for the deck overview, rendered with a headless Chromium. */
+  thumbnails: { enabled: boolean; chromiumPath: string }
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -131,6 +133,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       idleMs: Number(env.RUNNER_IDLE_MINUTES ?? 10) * 60_000,
       portRange: [4000, 4999],
       startTimeoutMs: 60_000,
+    },
+    thumbnails: {
+      // Off in unit tests (they create many decks); THUMBNAILS=off turns them off anywhere.
+      enabled: env.THUMBNAILS ? env.THUMBNAILS !== 'off' : !process.env.VITEST,
+      chromiumPath: env.CHROMIUM_PATH ?? '',
     },
   }
 }

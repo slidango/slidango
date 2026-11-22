@@ -22,7 +22,15 @@ interface PendingWrite {
  * Hocuspocus is the only writer of slides.md. Every change (clients, LLM,
  * restores) goes through a Y.Doc and lands on disk via the debounced sync below.
  */
-export function createCollab(deps: { db: Db; decks: Decks; users: Users; config: Config; log: Logger }) {
+export function createCollab(deps: {
+  db: Db
+  decks: Decks
+  users: Users
+  config: Config
+  log: Logger
+  /** The last editor left and the deck is on disk. */
+  onUnload?: (deckId: string) => void
+}) {
   const { db, decks, users, config, log } = deps
   const pendingWrites = new Map<string, PendingWrite>()
   const lastWritten = new Map<string, string>()
@@ -117,6 +125,7 @@ export function createCollab(deps: { db: Db; decks: Decks; users: Users; config:
       const deckId = requireDeckId(documentName)
       await flushDiskWrite(deckId)
       lastWritten.delete(deckId)
+      deps.onUnload?.(deckId)
     },
   })
 

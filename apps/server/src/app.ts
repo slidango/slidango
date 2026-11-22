@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs'
+import { createReadStream, existsSync } from 'node:fs'
 import type { IncomingHttpHeaders } from 'node:http'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, extname, join } from 'node:path'
@@ -25,6 +25,7 @@ import {
 import { type Action, type AuthContext, Users, can } from './auth'
 import { registerAccountRoutes } from './accounts'
 import { createCollab } from './collab'
+import { Thumbnails } from './thumbnails'
 import type { Config } from './config'
 import type { Db } from './db'
 import { Decks, initialSlides, toDeck } from './decks'
@@ -77,8 +78,21 @@ export async function buildApp(config: Config, db: Db) {
   const invites = new Invites(db, config.publicUrl)
   const tokenLimiter = new TokenRateLimiter()
   const decks = new Decks(db, config.dataDir)
-  const collab = createCollab({ db, decks, users, config, log: app.log })
-  const versions = new Versions((id) => decks.dir(id))
+  // Captures go through the runner, which is created below; the callback runs only later.
+  const thumbnails = new Thumbnails({
+    ...config.thumbnails,
+    dir: join(config.dataDir, 'thumbnails'),
+    log: app.log,
+    async preview(deckId) {
+      const deck = await decks.get(deckId)
+      if (!deck) return null
+      const status = await runner.ensure(deck.id, deck.themeId)
+      return status.status === 'ready' ? runner.target(deck.id) : null
+    },
+  })
+
+  const collab = createCollab({ db, decks, users, config, log: app.log, onUnload: (id) => thumbnails.schedule(id) })
+  const versions = new Versions((id) => decks.dir(id), (id) => thumbnails.schedule(id))
   const themes = new Themes(db, {
     dataDir: config.dataDir,
     builtinRuntimeDir: dirname(config.builtinRuntime),
@@ -210,10 +224,26 @@ export async function buildApp(config: Config, db: Db) {
 
   registerAccountRoutes(app, { config, users, invites, tokens, collab, safeNext })
 
-  const withPreview = (deck: Deck) => ({ ...deck, previewUrl: previewHosts.url(deck.slug) })
+  const withPreview = async (deck: Deck) => ({
+    ...deck,
+    previewUrl: previewHosts.url(deck.slug),
+    thumbnailAt: await thumbnails.version(deck.id),
+  })
 
   app.get<{ Querystring: { archived?: string } }>('/api/decks', async (req) =>
-    (await decks.list(req.auth!, req.query.archived === 'true')).map(withPreview),
+    Promise.all((await decks.list(req.auth!, req.query.archived === 'true')).map(withPreview)),
+  )
+
+  /** Slide 1 as an image (light or dark), rendered after saves; `?v=` makes it cacheable forever. */
+  app.get<{ Params: { id: string }; Querystring: { scheme?: string; v?: string } }>(
+    '/api/decks/:id/thumbnail',
+    async (req, reply) => {
+      const deck = await loadDeck(req, 'view')
+      const file = thumbnails.file(deck.id, req.query.scheme === 'dark' ? 'dark' : 'light')
+      if (!existsSync(file)) throw app.httpErrors.notFound('No thumbnail yet')
+      reply.header('cache-control', req.query.v ? 'private, max-age=31536000, immutable' : 'private, no-cache')
+      return reply.type('image/jpeg').send(createReadStream(file))
+    },
   )
 
   async function readyTheme(id: string) {
@@ -505,6 +535,7 @@ export async function buildApp(config: Config, db: Db) {
   app.addHook('onClose', async () => {
     await collab.flushAll()
     collab.hocuspocus.closeConnections()
+    await thumbnails.close()
     await runner.stopAll()
     previewProxy.close()
   })

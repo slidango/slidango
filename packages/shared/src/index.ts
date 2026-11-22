@@ -40,6 +40,8 @@ export const deckSchema = z.object({
   updatedAt: z.string(),
   /** Full Slidev preview (for presenting); set on list and detail responses. */
   previewUrl: z.string().optional(),
+  /** Time of the last slide-1 image (ms), null if none yet; set on list responses. */
+  thumbnailAt: z.number().nullable().optional(),
 })
 export type Deck = z.infer<typeof deckSchema>
 
